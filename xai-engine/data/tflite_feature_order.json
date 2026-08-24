@@ -1,0 +1,7 @@
+[
+    "PeakAcceleration",
+    "MotionVariance",
+    "AudioEnergy",
+    "GPSVelocity",
+    "PossibleFall"
+]

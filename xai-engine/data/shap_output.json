@@ -1,0 +1,11 @@
+{
+    "Prediction": "Emergency",
+    "Confidence": 0.999905,
+    "SHAP": {
+        "PeakAcceleration": 0.143158,
+        "MotionVariance": 0.113331,
+        "AudioEnergy": 0.026651,
+        "GPSVelocity": 0.053793,
+        "PossibleFall": 0.063062
+    }
+}

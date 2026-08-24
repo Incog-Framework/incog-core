@@ -1,0 +1,26 @@
+{
+    "Title": "Emergency Detected",
+    "Message": "An emergency was detected with 100.0% confidence. The system detected signs of unusually high acceleration, significant movement variance, a possible fall, an abrupt change in movement speed, and elevated audio activity.",
+    "Confidence": 0.9999,
+    "Reasons": [
+        "unusually high acceleration",
+        "significant movement variance",
+        "a possible fall",
+        "an abrupt change in movement speed",
+        "elevated audio activity"
+    ],
+    "TopContributingFeatures": {
+        "PeakAcceleration": 0.143158,
+        "MotionVariance": 0.113331,
+        "AudioEnergy": 0.026651,
+        "GPSVelocity": 0.053793,
+        "PossibleFall": 0.063062
+    },
+    "FeatureValues": {
+        "PeakAcceleration": 24.0967,
+        "MotionVariance": 33.5643,
+        "AudioEnergy": 0.298,
+        "GPSVelocity": 0.16,
+        "PossibleFall": true
+    }
+}

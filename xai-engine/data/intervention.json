@@ -1,0 +1,14 @@
+{
+    "Timestamp": "2026-08-25T00:04:49.708161",
+    "Prediction": "Emergency",
+    "Confidence": 0.9999,
+    "EmergencyStatus": true,
+    "DecisionThreshold": 0.8,
+    "Intervention": {
+        "Action": "Emergency Alert",
+        "Priority": "HIGH",
+        "Message": "Potential emergency condition detected.",
+        "RecommendedAction": "Initiate emergency response."
+    },
+    "XAIAvailable": true
+}

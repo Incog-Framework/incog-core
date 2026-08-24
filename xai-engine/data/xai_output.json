@@ -1,0 +1,20 @@
+{
+    "Prediction": "Emergency",
+    "Confidence": 0.9999,
+    "EmergencyStatus": true,
+    "DecisionThreshold": 0.8,
+    "SHAP": {
+        "PeakAcceleration": 0.143158,
+        "MotionVariance": 0.113331,
+        "AudioEnergy": 0.026651,
+        "GPSVelocity": 0.053793,
+        "PossibleFall": 0.063062
+    },
+    "LIME": {
+        "MotionVariance > 25.20": 0.295421,
+        "PeakAcceleration > 20.62": 0.264128,
+        "0.11 < AudioEnergy <= 0.40": -0.214919,
+        "0.50 < PossibleFall <= 1.00": 0.197703,
+        "0.00 < GPSVelocity <= 0.20": 0.190662
+    }
+}

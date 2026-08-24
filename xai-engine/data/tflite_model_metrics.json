@@ -1,0 +1,9 @@
+{
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "test_samples": 6,
+    "training_samples": 24,
+    "threshold": 0.5
+}
