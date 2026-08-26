@@ -33,6 +33,14 @@ android {
     }
 }
 
+// Robolectric 4.13's bundled ASM can't read class files produced by very new
+// JDKs (e.g. JDK 25 -> "Unsupported class file major version 69") during its
+// shadow teardown. Pin the test JVM to a known-compatible toolchain instead
+// of relying on whatever JDK happens to be on the host's PATH.
+kotlin {
+    jvmToolchain(17)
+}
+
 dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
@@ -42,4 +50,7 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
+    // JVM-side Bitmap support for local Phase 7->10 pipeline tests (no emulator required).
+    testImplementation("org.robolectric:robolectric:4.13")
+    testImplementation("androidx.test:core:1.5.0")
 }

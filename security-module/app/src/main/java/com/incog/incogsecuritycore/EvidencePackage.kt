@@ -25,7 +25,8 @@ data class EvidencePackage(
     val timestamp: Long,
     val gps: GPSData,
     val audioBase64: String, // Compressed audio buffer converted to Base64
-    val featureVector: FeatureVector
+    val featureVector: FeatureVector,
+    val aiResult: AIResult
 ) {
     /**
      * Serializes the evidence package instance into a UTF-8 JSON byte array

@@ -1,29 +1,59 @@
 package com.incog.incogsecuritycore
 import android.graphics.Bitmap
+import android.util.Base64
 import android.util.Log
+import javax.crypto.SecretKey
+
+/**
+ * Output of a completed Phase 7 -> Phase 10 run. The encryption key is
+ * returned alongside the stego images because it is not persisted anywhere
+ * else yet - in production it belongs in the Android Keystore, wrapped for
+ * transport, or handed off to Chirag's backend out of band.
+ */
+data class PipelineResult(
+    val stegoImages: List<Bitmap>,
+    val secretKey: SecretKey
+)
+
 object SecurityOrchestrator {
     private const val TAG = "SecurityOrchestrator"
+    private const val FRAGMENT_CHUNK_SIZE = 256
 
     /**
-     * Simulates the handoff from Lipika (The Intelligence Core) and runs
-     * the entire Phase 7 -> Phase 10 pipeline.
+     * Runs the Phase 7 -> Phase 10 pipeline against a real emergency handoff
+     * from Lipika's decision engine (sessionId/gps/featureVector/aiResult)
+     * plus the flushed audio buffer for that session.
+     *
+     * Returns null and discards silently when aiResult.emergencyStatus is
+     * false, per the Phase 6 -> Phase 7 handoff rule.
      */
-    fun processEmergencyTrigger(carrierImage: Bitmap): List<Bitmap> {
-        Log.d(TAG, "--- INCOG SECURITY PIPELINE STARTED ---")
+    fun processEmergencyTrigger(
+        sessionId: String,
+        timestamp: Long,
+        gps: GPSData,
+        featureVector: FeatureVector,
+        aiResult: AIResult,
+        audioBytes: ByteArray,
+        carrierImages: List<Bitmap>
+    ): PipelineResult? {
+        if (!aiResult.emergencyStatus) {
+            Log.d(TAG, "AI result did not flag an emergency; discarding silently.")
+            return null
+        }
 
-        // 1. MOCK HANDOFF FROM LIPIKA (Phase 6)
-        // Simulating the EmergencyTriggered = True signal and JSON payload metadata
-        val mockGps = GPSData(lat = 12.9716, lng = 77.5946)
-        val mockFeatures = FeatureVector(18.2, 4.1, 0.82, 0.0, true)
+        require(carrierImages.isNotEmpty()) { "At least one carrier image is required." }
+
+        Log.d(TAG, "--- INCOG SECURITY PIPELINE STARTED ---")
 
         // PHASE 7: Unified Evidence Packaging
         Log.d(TAG, "Executing Phase 7: Packaging Evidence...")
         val evidence = EvidencePackage(
-            sessionId = "SESS-9021",
-            timestamp = System.currentTimeMillis() / 1000,
-            gps = mockGps,
-            audioBase64 = "U2FtcGxlQXVkaW9WYXVsdA==", // Fake base64 audio string
-            featureVector = mockFeatures
+            sessionId = sessionId,
+            timestamp = timestamp,
+            gps = gps,
+            audioBase64 = Base64.encodeToString(audioBytes, Base64.NO_WRAP),
+            featureVector = featureVector,
+            aiResult = aiResult
         )
         val rawPayload = evidence.toByteArray()
 
@@ -35,8 +65,7 @@ object SecurityOrchestrator {
 
         // PHASE 9: Data Fragmentation
         Log.d(TAG, "Executing Phase 9: Slicing Encrypted Blob...")
-        // Slicing the blob into chunks (e.g., 256 bytes per fragment to fit in small images)
-        val fragments = FragmentationManager.fragmentData(encryptedBlob, 256)
+        val fragments = FragmentationManager.fragmentData(encryptedBlob, FRAGMENT_CHUNK_SIZE)
         Log.d(TAG, "Payload sliced into ${fragments.size} fragments.")
 
         // PHASE 10: LSB Steganography
@@ -44,8 +73,8 @@ object SecurityOrchestrator {
         val stegoImages = mutableListOf<Bitmap>()
 
         for ((index, fragment) in fragments.withIndex()) {
-            // For this simulation, we reuse the same base carrier image.
-            // In full production, you would loop through a pre-packaged array of different images.
+            // Cycle through the built-in carrier pool instead of reusing one image per fragment.
+            val carrierImage = carrierImages[index % carrierImages.size]
             val stegoImage = SteganographyEngine.embedData(carrierImage, fragment)
             stegoImages.add(stegoImage)
             Log.d(TAG, "Fragment ${index + 1} embedded successfully.")
@@ -54,6 +83,6 @@ object SecurityOrchestrator {
         Log.d(TAG, "--- INCOG SECURITY PIPELINE COMPLETE ---")
 
         // Final Output: Ready for Network Payload Hand-off to Chirag (Phase 11)
-        return stegoImages
+        return PipelineResult(stegoImages, secretKey)
     }
 }
