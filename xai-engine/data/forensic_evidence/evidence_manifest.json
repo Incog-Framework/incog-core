@@ -1,0 +1,31 @@
+{
+    "EvidenceID": "20260825_000450",
+    "Timestamp": "2026-08-25T00:04:50.308862",
+    "Files": [
+        {
+            "filename": "feature_vector.csv",
+            "sha256": "57c873cc3c878c2d31b896213d9180f4b5ac1602dfc18f578c9ba5e915de8b64",
+            "size_bytes": 103
+        },
+        {
+            "filename": "prediction_tflite.json",
+            "sha256": "6c30bb9625549bb2a62c373ceb97ca964376ec48d5c39f817e51e75436ea7fd7",
+            "size_bytes": 62
+        },
+        {
+            "filename": "decision.json",
+            "sha256": "5148339c874165c380e20dc4a806ae7be2186b7c911f2c9715679e9ef07ec5d4",
+            "size_bytes": 115
+        },
+        {
+            "filename": "xai_output.json",
+            "sha256": "f46c9dce0441083e7f4a2f75b54989e7602d4bb0c945414670a3e5fc8225f02c",
+            "size_bytes": 587
+        },
+        {
+            "filename": "intervention.json",
+            "sha256": "8ac247e9ae1e28d176df4eb4dff75054e2675d39da8698eed6549d529e7ee29c",
+            "size_bytes": 420
+        }
+    ]
+}

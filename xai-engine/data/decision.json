@@ -1,0 +1,6 @@
+{
+    "EmergencyStatus": true,
+    "Prediction": "Emergency",
+    "Confidence": 0.9999,
+    "Threshold": 0.8
+}

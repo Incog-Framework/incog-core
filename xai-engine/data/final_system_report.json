@@ -1,0 +1,36 @@
+{
+    "ReportTimestamp": "2026-08-25T00:05:10.610091",
+    "System": "INCOG AI",
+    "FeatureVectorAvailable": true,
+    "Prediction": {
+        "Class": "Emergency",
+        "Confidence": 0.9999
+    },
+    "Decision": {
+        "EmergencyStatus": true,
+        "Threshold": 0.8
+    },
+    "XAI": {
+        "SHAP": true,
+        "LIME": true
+    },
+    "Intervention": {
+        "Action": "Emergency Alert",
+        "Priority": "HIGH",
+        "Message": "Potential emergency condition detected.",
+        "RecommendedAction": "Initiate emergency response."
+    },
+    "Forensics": {
+        "EvidenceManifest": true
+    },
+    "ModelMetrics": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "test_samples": 6,
+        "training_samples": 24,
+        "threshold": 0.5
+    },
+    "SystemStatus": "SUCCESS"
+}

@@ -1,0 +1,30 @@
+{
+  "sessionId": "SESS-DEMO0001",
+  "timestampMs": 1734900000000,
+  "latestAccel": {"timestampMs": 1734900000000, "x": 18.2, "y": 4.1, "z": 12.5},
+  "latestGyro": {"timestampMs": 1734900000000, "x": 4.2, "y": 5.1, "z": 4.8},
+  "latestLocation": {
+    "timestampMs": 1734899999000,
+    "latitude": 12.9716,
+    "longitude": 77.5946,
+    "speedMps": 0.0,
+    "accuracyM": 8.5
+  },
+  "accelSamples": [
+    {"timestampMs": 1734899999600, "x": 0.8, "y": 9.6, "z": 1.2},
+    {"timestampMs": 1734899999620, "x": 0.9, "y": 9.7, "z": 1.1},
+    {"timestampMs": 1734899999640, "x": 1.0, "y": 9.5, "z": 1.3},
+    {"timestampMs": 1734899999660, "x": 1.2, "y": 9.8, "z": 1.4},
+    {"timestampMs": 1734899999680, "x": 8.5, "y": 15.2, "z": 6.8},
+    {"timestampMs": 1734899999700, "x": 12.4, "y": 18.5, "z": 9.2},
+    {"timestampMs": 1734899999720, "x": 18.2, "y": 4.1, "z": 12.5},
+    {"timestampMs": 1734899999740, "x": 10.5, "y": 6.2, "z": 8.4},
+    {"timestampMs": 1734899999760, "x": 2.0, "y": 9.4, "z": 1.5},
+    {"timestampMs": 1734899999780, "x": 1.1, "y": 9.8, "z": 1.2}
+  ],
+  "gyroSamples": [
+    {"timestampMs": 1734899999780, "x": 0.1, "y": 0.2, "z": 0.1}
+  ],
+  "audioRmsEnergy": 21500.0,
+  "audioBufferedMs": 2000
+}

@@ -1,0 +1,17 @@
+{
+    "model_name": "Incog Emergency Detection Model",
+    "model_type": "Lightweight Neural Network",
+    "deployment_format": "TensorFlow Lite",
+    "features": [
+        "PeakAcceleration",
+        "MotionVariance",
+        "AudioEnergy",
+        "GPSVelocity",
+        "PossibleFall"
+    ],
+    "output": "Emergency probability",
+    "classification_threshold": 0.5,
+    "decision_threshold": 0.8,
+    "framework": "TensorFlow",
+    "deployment": "On-device"
+}
