@@ -8,7 +8,7 @@ from cryptography.fernet import Fernet
 # Load the secrets
 load_dotenv()
 
-URL = "http://127.0.0.1:8000/api/v1/sos"
+URL = "https://incog-c2-backend.onrender.com/api/v1/sos"
 AGENT_SECRET_KEY = os.getenv("AGENT_SECRET_KEY")
 
 # Setup Encryption
@@ -50,7 +50,7 @@ try:
             # Encrypt the text into garbled bytes, then convert to string for JSON transmission
             encrypted_bytes = cipher_suite.encrypt(secret_message.encode())
             payload["encrypted_evidence"] = encrypted_bytes.decode()
-            print(f"\n🔒 ENCRYPTING PAYLOAD: '{secret_message}'")
+            print(f"\n🔒 ENCRYPTION PAYLOAD: '{secret_message}'")
             print("📤 Attaching to signal...")
 
         # Package the secret API key into the HTTP Headers
@@ -59,17 +59,20 @@ try:
         }
         
         try:
-            response = requests.post(URL, json=payload, headers=headers)
+            print(f"[{time.strftime('%H:%M:%S' )}] 📤 Sending packet to cloud...")
+            response = requests.post(URL, json=payload, headers=headers, timeout=10)
             
             if response.status_code == 200:
                 print(f"[{time.strftime('%H:%M:%S')}] ✅ Target updated: {current_lat:.4f}, {current_lon:.4f}")
             elif response.status_code == 403:
                 print(f"[{time.strftime('%H:%M:%S')}] 🚨 ACCESS DENIED: Incorrect Secret Key!")
             else:
-                print(f"[{time.strftime('%H:%M:%S')}] ❌ Server rejected the data: {response.text}")
+                print(f"[{time.strftime('%H:%M:%S')}] ❌ Server rejected the data: {response.status_code} - {response.text}")
                 
+        except requests.exceptions.Timeout:
+            print(f"[{time.strftime('%H:%M:%S')}] ⏳ Connection timed out. Render free tier may be waking up...")
         except Exception as e:
-            print(f"[{time.strftime('%H:%M:%S')}] ❌ Connection failed. Is the main server running?")
+            print(f"[{time.strftime('%H:%M:%S')}] ❌ Connection failed: {e}")
             
         # Wait 3 seconds before moving the agent again
         time.sleep(3)
