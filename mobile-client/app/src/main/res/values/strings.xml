@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Calculator</string>
+    <!-- Deliberately innocuous label/description: this is what the user sees in the system
+         Accessibility settings list, so it must not hint at the hidden safety function. -->
+    <string name="sentinel_service_label">Calculator Gestures</string>
+    <string name="sentinel_service_description">Enables quick keypad and volume-key shortcuts for the calculator.</string>
+</resources>

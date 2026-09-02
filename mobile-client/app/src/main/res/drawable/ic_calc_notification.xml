@@ -1,0 +1,25 @@
+<!--
+  Calculator glyph for the Ghost State notification small icon. Notification icons are rendered as
+  an alpha silhouette (tinted by the system), so this uses evenOdd fill: the body is opaque and the
+  screen + 3x3 button grid are cut out as transparent holes, giving a recognizable calculator.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M4,2 h16 v20 h-16 z
+            M6,4 h12 v4 h-12 z
+            M6,10.5 h2 v2 h-2 z
+            M11,10.5 h2 v2 h-2 z
+            M16,10.5 h2 v2 h-2 z
+            M6,14 h2 v2 h-2 z
+            M11,14 h2 v2 h-2 z
+            M16,14 h2 v2 h-2 z
+            M6,17.5 h2 v2 h-2 z
+            M11,17.5 h2 v2 h-2 z
+            M16,17.5 h2 v2 h-2 z" />
+</vector>
