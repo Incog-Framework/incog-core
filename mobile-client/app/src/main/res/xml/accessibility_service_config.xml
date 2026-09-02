@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sentinel Engine accessibility-service config.
+  flagRequestFilterKeyEvents + canRequestFilterKeyEvents="true" are REQUIRED for onKeyEvent()
+  to receive hardware volume-key events; without both, the service cannot intercept the DDU
+  trigger while the app is backgrounded or the screen is locked.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/sentinel_service_description"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagRequestFilterKeyEvents"
+    android:canRequestFilterKeyEvents="true"
+    android:notificationTimeout="100" />
