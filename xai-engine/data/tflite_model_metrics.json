@@ -1,9 +1,192 @@
 {
+    "generated_at": "2026-09-02T16:43:07.778717+00:00",
+    "data_provenance": {
+        "dataset": "synthetic",
+        "source": "data\\training_data.csv",
+        "is_synthetic": true,
+        "is_production_evidence": false,
+        "real_windows": 0,
+        "subjects": 0,
+        "caveat": "30 hand-written rows, linearly separable on PeakAcceleration alone. Useful only as a pipeline smoke test. Metrics from this dataset say nothing about real-world accuracy or false-positive rate."
+    },
+    "production_claim_supported": false,
+    "false_positive_target": 0.05,
+    "meets_false_positive_target": null,
+    "training_samples": 24,
+    "test_samples": 6,
+    "class_distribution": {
+        "0": 15,
+        "1": 15
+    },
+    "roc_auc": 1.0,
+    "at_classification_threshold": {
+        "threshold": 0.5,
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "confusion_matrix": [
+            [
+                3,
+                0
+            ],
+            [
+                0,
+                3
+            ]
+        ],
+        "confusion_matrix_layout": "[[TN, FP], [FN, TP]]",
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0,
+        "true_negatives": 3,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "true_positives": 3
+    },
+    "at_decision_threshold": {
+        "threshold": 0.8,
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "confusion_matrix": [
+            [
+                3,
+                0
+            ],
+            [
+                0,
+                3
+            ]
+        ],
+        "confusion_matrix_layout": "[[TN, FP], [FN, TP]]",
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0,
+        "true_negatives": 3,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "true_positives": 3
+    },
+    "threshold_sweep": [
+        {
+            "threshold": 0.05,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.1,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.15,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.2,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.25,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.3,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.35,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.4,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.45,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.5,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.55,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.6,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.65,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.7,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.75,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.8,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.85,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.9,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        },
+        {
+            "threshold": 0.95,
+            "recall": 1.0,
+            "precision": 1.0,
+            "false_positive_rate": 0.0
+        }
+    ],
+    "model_written": false,
     "accuracy": 1.0,
     "precision": 1.0,
     "recall": 1.0,
     "f1_score": 1.0,
-    "test_samples": 6,
-    "training_samples": 24,
     "threshold": 0.5
 }

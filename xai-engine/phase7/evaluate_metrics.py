@@ -197,7 +197,41 @@ print(
 # SAVE METRICS
 # ============================================================
 
+# ------------------------------------------------------------
+# FALSE-POSITIVE RATE + PROVENANCE
+#
+# This script evaluates on data/training_data.csv, which is the 30 synthetic
+# rows. Emitting the numbers without saying so lets a 1.00 get quoted as a
+# production result, so the provenance is stamped into the artifact itself.
+# The authoritative evaluation is phase5/train_tflite_model.py, which reads
+# provenance from the dataset adapter.
+# ------------------------------------------------------------
+
+true_negatives, false_positives, false_negatives, true_positives = cm.ravel()
+
+negatives = int(true_negatives + false_positives)
+
+false_positive_rate = (
+    round(float(false_positives) / negatives, 4)
+    if negatives
+    else None
+)
+
+print("\nFalse-positive rate:", false_positive_rate)
+
 metrics = {
+    "data_provenance": {
+        "dataset": "synthetic",
+        "source": "data/training_data.csv",
+        "is_synthetic": True,
+        "caveat": (
+            "30 hand-written rows, linearly separable on PeakAcceleration "
+            "alone. These metrics measure the dataset, not the model."
+        )
+    },
+    "production_claim_supported": False,
+    "false_positive_rate": false_positive_rate,
+    "confusion_matrix_layout": "[[TN, FP], [FN, TP]]",
     "training_samples": len(X_train),
     "test_samples": len(X_test),
     "accuracy": round(float(accuracy), 4),

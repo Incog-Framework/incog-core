@@ -33,6 +33,25 @@ FILES = [
 ]
 
 
+# Session context, written only by the real SensorPacket path
+# (phase4/process_sensor_packet.py). Evidence that cannot be tied back to the
+# Ghost State session it came from is far less useful to the security module,
+# so it is carried onto the manifest whenever it exists.
+DECISION_PATH = os.path.join(DATA_DIR, "decision.json")
+
+session_context = {}
+
+if os.path.exists(DECISION_PATH):
+    with open(DECISION_PATH, "r") as file:
+        decision = json.load(file)
+
+    if "SessionID" in decision:
+        session_context = {
+            "SessionID": decision["SessionID"],
+            "SessionTimestampMs": decision["TimestampMs"]
+        }
+
+
 evidence = {
     "EvidenceID": datetime.now().strftime(
         "%Y%m%d_%H%M%S"
@@ -40,6 +59,8 @@ evidence = {
     "Timestamp": datetime.now().isoformat(),
     "Files": []
 }
+
+evidence.update(session_context)
 
 
 for filename in FILES:

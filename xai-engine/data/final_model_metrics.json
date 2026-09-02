@@ -1,4 +1,13 @@
 {
+    "data_provenance": {
+        "dataset": "synthetic",
+        "source": "data/training_data.csv",
+        "is_synthetic": true,
+        "caveat": "30 hand-written rows, linearly separable on PeakAcceleration alone. These metrics measure the dataset, not the model."
+    },
+    "production_claim_supported": false,
+    "false_positive_rate": 0.0,
+    "confusion_matrix_layout": "[[TN, FP], [FN, TP]]",
     "training_samples": 24,
     "test_samples": 6,
     "accuracy": 1.0,

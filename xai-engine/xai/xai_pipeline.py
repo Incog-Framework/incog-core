@@ -15,6 +15,13 @@ DATA_DIR = os.path.join(
     "data"
 )
 
+# This file is launched two ways: as `python -m xai.xai_pipeline` (package on
+# the path) and as `python xai/xai_pipeline.py` from run_ai_pipeline.py, where
+# sys.path[0] is xai/ and the package is NOT importable. Make the second form
+# work so `from xai.explanation_generator import ...` resolves either way.
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
 
 def run_module(module_name):
 
@@ -118,6 +125,11 @@ with open(
 # 6. Build final XAI output
 # ============================================================
 
+# NOTE: these six keys plus the optional SessionID/TimestampMs are the shape
+# security-module/AIResult.kt mirrors. Keep them; only ADD alongside. (If that
+# class is ever used to decode this file, it will need
+# Json { ignoreUnknownKeys = true } for the enrichment fields added below.)
+
 xai_output = {
 
     "Prediction": decision["Prediction"],
@@ -139,6 +151,35 @@ xai_output = {
 if "SessionID" in decision:
     xai_output["SessionID"] = decision["SessionID"]
     xai_output["TimestampMs"] = decision["TimestampMs"]
+
+
+# ============================================================
+# 6b. Enrichment: the feature values that were actually scored,
+#     the ranked drivers, and the human-readable explanation.
+#
+#     These live in xai_output.json (not only in the separate
+#     human_explanation.json) so the backend can consume ONE
+#     document per decision once evidence arrives.
+# ============================================================
+
+from xai.explanation_generator import (   # noqa: E402
+    build_explanation,
+    read_feature_values
+)
+
+feature_values = read_feature_values()
+
+xai_output["FeatureValues"] = feature_values
+
+explanation = build_explanation(xai_output, feature_values)
+
+xai_output["TopContributingFeatures"] = explanation["TopContributingFeatures"]
+
+xai_output["Explanation"] = {
+    "Title": explanation["Title"],
+    "Message": explanation["Message"],
+    "Reasons": explanation["Reasons"]
+}
 
 
 # ============================================================

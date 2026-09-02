@@ -83,6 +83,13 @@ report = {
 }
 
 
+# Tie the whole report back to the originating Ghost State session when the
+# real SensorPacket path produced it (absent for the CSV prototype path).
+if "SessionID" in decision:
+    report["SessionID"] = decision["SessionID"]
+    report["SessionTimestampMs"] = decision["TimestampMs"]
+
+
 with open(
     OUTPUT_PATH,
     "w"
