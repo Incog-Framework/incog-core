@@ -235,6 +235,27 @@ def test_tampered_evidence_is_rejected(client):
     assert "authentication" in response.json()["detail"].lower()
 
 
+def test_evidence_rejection_tells_the_client_not_to_retry(client, session):
+    """
+    A 400 here means "evidence rejected", not "request failed". The signal is
+    already committed and contacts already alerted, so a client that retried
+    would file a duplicate signal and text every contact a second time.
+    """
+    raw = bytearray(base64.b64decode(evidence_blob()))
+    raw[20] ^= 0x01
+    response = client.post(
+        "/api/v1/sos",
+        json=sos_body(encrypted_evidence=base64.b64encode(bytes(raw)).decode()),
+        headers={"X-Incog-Key": API_KEY},
+    )
+
+    detail = response.json()["detail"].lower()
+    assert "do not retry" in detail
+    assert "signal 1" in detail
+    # The signal really did survive the rejection.
+    assert session.added[0].device_id == "demo-device-01"
+
+
 def test_malformed_evidence_is_rejected(client):
     response = client.post(
         "/api/v1/sos",

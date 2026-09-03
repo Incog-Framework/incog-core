@@ -385,11 +385,22 @@ def _store_evidence(db: Session, signal_id: int, blob_b64: str) -> bool:
 
     The signal itself is already committed by this point, so a bad blob costs
     the evidence but never the location fix or the alert.
+
+    Rejections are reported as 4xx/5xx, but the signal survives. Every message
+    says so explicitly: a client that retried on this status would file a
+    duplicate signal and text every emergency contact a second time.
     """
+    # Appended to each rejection so the caller cannot mistake it for "the whole
+    # request failed, send it again".
+    recorded = (
+        f" Signal {signal_id} was recorded and contacts were alerted; do not retry it."
+    )
+
     if EVIDENCE_KEY is None:
         logger.error("Evidence supplied but EVIDENCE_AES_KEY is not configured")
         raise HTTPException(
-            status_code=503, detail="Evidence ingestion is not configured"
+            status_code=503,
+            detail="Evidence ingestion is not configured." + recorded,
         )
 
     try:
@@ -397,13 +408,17 @@ def _store_evidence(db: Session, signal_id: int, blob_b64: str) -> bool:
         parsed = parse_evidence(plaintext)
     except EvidenceAuthError as exc:
         logger.error(f"Evidence authentication failed for signal {signal_id}: {exc}")
-        raise HTTPException(status_code=400, detail="Evidence failed authentication")
+        raise HTTPException(
+            status_code=400, detail="Evidence failed authentication." + recorded
+        )
     except EvidenceFormatError as exc:
         logger.error(f"Malformed evidence for signal {signal_id}: {exc}")
-        raise HTTPException(status_code=400, detail="Malformed evidence payload")
+        raise HTTPException(
+            status_code=400, detail="Malformed evidence payload." + recorded
+        )
     except EvidenceError as exc:
         logger.error(f"Evidence rejected for signal {signal_id}: {exc}")
-        raise HTTPException(status_code=400, detail="Evidence rejected")
+        raise HTTPException(status_code=400, detail="Evidence rejected." + recorded)
 
     device_timestamp = None
     raw_ts = parsed.get("timestamp")

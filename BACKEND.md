@@ -99,8 +99,17 @@ reaches log lines and SMS bodies. Coordinates are bounds-checked.
 | 422 | Payload failed validation |
 | 503 | Evidence attached but `EVIDENCE_AES_KEY` is not configured |
 
-The signal is committed *before* evidence is processed, so a bad blob costs the
-evidence but never the location fix or the alert.
+### ⚠️ Do not retry on 400 or 503
+
+The signal is committed and contacts are alerted *before* evidence is
+processed, so a bad blob costs the evidence but never the location fix or the
+alert. A 400/503 from this endpoint therefore means **"evidence rejected"**,
+not "request failed" — the signal is already stored.
+
+**A client that retries on these statuses will file a duplicate signal and text
+every emergency contact a second time.** Each rejection message names the
+signal id and says so explicitly. Retry only on 5xx other than 503, or on a
+network-level failure.
 
 ---
 
