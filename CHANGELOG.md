@@ -1,287 +1,82 @@
-# Changelog - Backend Implementation
+# Backend Changelog
 
-## v2.0.0 - SOS Dispatcher Pipeline (Current)
+## Unreleased — Decisions 1 & 4 (issue #4)
 
-### ✨ New Features
+### Evidence encryption (Decision 1)
 
-#### SOS Dispatcher Module
-- **Multi-channel Notifications**
-  - SMS alerts via Twilio integration
-  - Webhook payloads for external system integration
-  - Configurable enable/disable per channel
-  - Graceful degradation if credentials missing
+- Replaced Fernet with **AES-256-GCM**, matching `CryptoManager.kt`'s wire
+  format: `[12-byte IV][ciphertext‖16-byte GCM tag]`, base64 in
+  `encrypted_evidence`, plaintext being `EvidencePackage` JSON.
+- Extracted `evidence_crypto.py`, free of DB and web imports so the format is
+  unit-testable on its own.
+- Distinct failure modes: tampered/wrong-key → `EvidenceAuthError`, malformed →
+  `EvidenceFormatError`, both surfacing as 400 rather than 500.
+- Key comes from `EVIDENCE_AES_KEY` (base64 of 32 bytes) and is validated at
+  startup. If unset, evidence is refused with 503 while SOS and alerting keep
+  working — losing the evidence key must not take the life-critical path down.
 
-- **Alert Types**
-  - Regular SOS signals → SMS to emergency contacts
-  - Geofence breaches → Urgent breach alerts with stealth revocation
-  - Custom alert messages with location links
+> **Blocked:** `SecurityOrchestrator.kt` still generates a fresh random key per
+> emergency (`generate256BitKey()`) and shares it with nobody. Evidence cannot
+> decrypt end-to-end until it loads the pre-shared key instead. The backend side
+> is complete and tested against the format.
 
-- **Async Dispatch**
-  - Non-blocking alert dispatch (background thread)
-  - SOS response returns immediately
-  - Failures don't affect SOS operation
+### De-militarisation (Decision 4)
 
-- **Testing & Validation Endpoints**
-  - `POST /api/v1/dispatch/test` → Send test alert
-  - `GET /api/v1/dispatch/status` → Check configuration
+- Removed the hardcoded London `RESTRICTED_ZONE_WKT` polygon and the inverted
+  geofence that *revoked* a user's stealth on entering it. `is_stealth_active`
+  is now stored exactly as the client reports it.
+- Reframed vocabulary throughout: agent → user, "restricted enemy zone" and
+  "compromised" gone from alerts, logs, the dashboard and the simulator.
+- Dashboard retitled to "Incog Safety Dashboard", danger-zone polygon removed,
+  now frames the actual data instead of centring on London. Fallback centre is
+  configurable and defaults to BMSCE.
+- `tracker.py`: "Agent-X-Delta" → configurable `DEVICE_ID`, "intercepted intel"
+  → a realistic simulated `EvidencePackage`.
 
-#### Configuration
-- Environment variables for Twilio credentials
-- Emergency contact management (comma-separated)
-- Webhook URL configuration
-- Per-channel enable/disable flags
+### Evidence encrypted at rest (Decision 4)
 
-### 🔒 Security Improvements
+- `evidence_vault.decrypted_text` **removed**. The backend now decrypts in
+  memory only, to verify the GCM tag and lift `sessionId`/`timestamp` for
+  triage, and persists the **original ciphertext** in a new `ciphertext BYTEA`.
+- Requires `migrations/001_evidence_encrypted_at_rest.sql`, which **deletes
+  existing evidence rows** — they hold plaintext that cannot be converted back.
 
-- Encrypted payload validation with proper error handling
-- API key validation on startup with key strength warning
-- Database connection pooling with pre-ping verification
-- Input validation for latitude/longitude bounds
-- Structured logging for audit trails
-- Rate-limit ready architecture (future enhancement)
+### Fixes
 
-### 🚀 Performance Optimizations
+- **`/map` was broken.** Adding auth to `GET /api/v1/sos` left the dashboard's
+  `fetch()` sending no key, so it silently 403'd and rendered nothing. It now
+  asks for a key and sends it as a header, held in `sessionStorage` — never in
+  the URL, where it would reach browser history and access logs.
+- API key comparison is now constant-time (`secrets.compare_digest`).
+- Replaced deprecated `datetime.utcnow()`, Pydantic v1 `@validator`, and
+  FastAPI `@app.on_event` with their current equivalents.
+- `create_all()` moved out of import into the lifespan handler, so the module
+  can be imported without a reachable database.
 
-- Connection pool management (pool_size=20, max_overflow=40)
-- Database query optimization using window functions
-- Spatial index on PostGIS geometry columns
-- Composite index on device_id + timestamp
-- Frontend polling reduced from 2s to 5s (60% improvement)
-- Async alert dispatch prevents blocking
+### Auth rename
 
-### 📝 Documentation
+- `X-Incog-Key` is the current header; `X-Agent-Key` still works but logs a
+  deprecation warning.
+- `INCOG_API_KEY` is the current variable, falling back to `AGENT_SECRET_KEY`.
 
-- `DISPATCHER_SETUP.md` - Comprehensive setup guide
-- `DISPATCHER_QUICKSTART.md` - 5-minute quick start
-- `.env.example` - Environment template with all options
+### Tests
 
-## v1.0.0 - Initial Backend Release
+- 80 tests, none requiring a database (`pytest tests/ -q`).
+- Includes a fixed known-answer vector and a 28-byte-overhead assertion pinning
+  the Kotlin↔Python format, plus coverage of tampering, wrong keys, truncation,
+  the dual auth headers, and that stored evidence contains no plaintext.
 
-### ✨ Features
+### Docs
 
-- FastAPI REST API for SOS signal ingestion
-- PostGIS spatial data storage and geofencing
-- Encrypted evidence vault with Fernet encryption
-- Real-time agent location tracking
-- Interactive Leaflet.js map dashboard
-- API key authentication via custom headers
-- Database connection management
-
-### 🔧 Technical Stack
-
-- **Framework:** FastAPI 0.139.0
-- **Database:** PostgreSQL + PostGIS (via SQLAlchemy)
-- **Encryption:** Cryptography.fernet
-- **SMS:** Twilio 9.11.0
-- **Validation:** Pydantic 2.13.4
-- **Server:** Uvicorn 0.50.2
+- `ARCHITECTURE.md`, `DISPATCHER_SETUP.md` and `DISPATCHER_QUICKSTART.md`
+  replaced by a single accurate `BACKEND.md`. They described the Fernet +
+  geofence design and were misleading.
 
 ---
 
-## Migration Guide: v1.0 → v2.0
+## Earlier
 
-### What Changed
-
-1. **Imports Added**
-   ```python
-   import threading
-   import requests
-   from twilio.rest import Client as TwilioClient
-   ```
-
-2. **New Environment Variables**
-   ```bash
-   ENABLE_SMS_DISPATCH=true
-   TWILIO_ACCOUNT_SID=...
-   TWILIO_AUTH_TOKEN=...
-   TWILIO_PHONE_NUMBER=...
-   EMERGENCY_CONTACTS=...
-   ENABLE_WEBHOOK_DISPATCH=false
-   DISPATCH_WEBHOOK_URL=...
-   ```
-
-3. **New Class: SOSDispatcher**
-   - Handles all notification logic
-   - Initialized at app startup
-   - Accessible via global `dispatcher` instance
-
-4. **Enhanced trigger_sos Endpoint**
-   - Now dispatches alerts asynchronously
-   - Detects geofence breach type
-   - Sends appropriate alert message
-
-5. **New Endpoints**
-   - `POST /api/v1/dispatch/test` - Test alerts
-   - `GET /api/v1/dispatch/status` - Configuration status
-
-### Backward Compatibility
-
-✅ **Fully Backward Compatible**
-- All existing endpoints unchanged
-- Dispatcher gracefully disables if not configured
-- No breaking changes to API contracts
-- Existing clients work without modification
-
-### Upgrade Steps
-
-1. Update `requirements.txt` (Twilio already included)
-2. Copy new `main.py` with dispatcher code
-3. Update `.env` with new dispatcher variables (or leave blank)
-4. Restart application
-5. Test with `POST /api/v1/dispatch/test` endpoint
-
----
-
-## Known Limitations & Future Work
-
-### Current Limitations
-
-1. **No Message Queuing**
-   - Alerts sent directly to Twilio/webhook
-   - No retry on transient failures
-   - No delivery confirmation storage
-
-2. **Single Retry Approach**
-   - Alerts fire once per signal
-   - No exponential backoff
-   - Failed alerts not persisted
-
-3. **Rate Limiting**
-   - No protection against alert spam
-   - Future: Add per-device alert throttling
-
-4. **Alert History**
-   - Dispatcher events not stored in database
-   - Future: Add `dispatch_events` table for audit trail
-
-### Roadmap (v2.1+)
-
-- [ ] Message queue integration (Redis/RabbitMQ)
-- [ ] Alert delivery confirmation tracking
-- [ ] Email notifications (SendGrid/AWS SES)
-- [ ] Slack channel integration
-- [ ] PagerDuty incident creation
-- [ ] Alert escalation policies
-- [ ] Rate limiting per device
-- [ ] Custom alert templates
-- [ ] Alert history API endpoint
-- [ ] Webhook retry with exponential backoff
-
----
-
-## Testing Checklist
-
-### Unit Testing
-- [ ] SMS payload formatting
-- [ ] Webhook payload structure
-- [ ] Geofence breach detection
-- [ ] Dispatcher initialization with missing credentials
-- [ ] Environment variable loading
-
-### Integration Testing
-- [ ] Twilio SMS delivery (with test account)
-- [ ] Webhook HTTP delivery (with mock server)
-- [ ] Alert dispatch on SOS signal
-- [ ] Alert dispatch on geofence breach
-- [ ] Async dispatch doesn't block response
-
-### Production Readiness
-- [ ] Twilio account funded and verified
-- [ ] Emergency contacts validated
-- [ ] Webhook URL tested and responding
-- [ ] Dispatcher status endpoint confirms configuration
-- [ ] Error logging monitored
-- [ ] Load tested with concurrent SOS signals
-
----
-
-## Metrics & Monitoring
-
-### Key Metrics to Track
-
-1. **Alert Latency**
-   - Time from SOS received to alert dispatched
-   - Target: <100ms average
-
-2. **Delivery Rate**
-   - Percentage of alerts successfully sent
-   - Target: >99% for SMS, >98% for webhooks
-
-3. **Error Rate**
-   - Failed dispatch attempts
-   - Monitor: Twilio auth errors, webhook timeouts
-
-4. **Volume**
-   - Alerts per hour
-   - Cost per alert (SMS: ~$0.0075)
-
-### Logging Points
-
-```python
-logger.info(f"SMS sent to {phone_number}")
-logger.error(f"SMS send failed to {phone_number}: {e}")
-logger.info(f"Webhook dispatched successfully")
-logger.error(f"Webhook failed with status {status}: {response.text}")
-```
-
-### Recommended Monitoring
-
-- Application error rate (watch for Twilio/webhook failures)
-- SMS delivery success percentage
-- Webhook response times
-- Database connection pool utilization
-- Alert volume by type (SOS vs Geofence)
-
----
-
-## Cost Analysis
-
-### SMS Costs (Twilio)
-
-- **Per Message:** $0.0075
-- **1 SOS to 3 Contacts:** $0.0225
-- **100 SOS/month:** ~$2.25
-- **1000 SOS/month:** ~$22.50
-
-### Infrastructure
-
-- **Server:** Render.com free tier → $7/month (pro)
-- **Database:** PostgreSQL 12GB → $15/month (Heroku)
-- **Total:** ~$22/month + SMS costs
-
-### ROI Considerations
-
-- **Benefits:** Immediate emergency alerts, reduced response time
-- **Costs:** Low ($25-30/month for typical usage)
-- **Break-even:** Prevents single incident = ROI positive
-
----
-
-## Support & Troubleshooting
-
-### Common Issues
-
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Alerts not sending | SMS disabled or missing credentials | Check `/api/v1/dispatch/status` |
-| Twilio auth error | Invalid credentials | Verify TWILIO_ACCOUNT_SID/AUTH_TOKEN |
-| Webhook timeout | External server offline | Test webhook URL directly |
-| SOS response slow | Dispatcher blocking | Should not happen (async) |
-
-### Debug Logging
-
-Enable debug logging in `main.py`:
-```python
-logging.basicConfig(level=logging.DEBUG)
-```
-
-Check logs for:
-- "Twilio SMS dispatcher initialized" ✅
-- "SMS sent to +1-555-0100" ✅
-- "Webhook dispatched successfully" ✅
-
----
-
-**Last Updated:** 2026-08-31  
-**Backend Lead:** CHIRAG8643  
-**Status:** Production Ready ✅
+- SOS dispatcher: SMS via Twilio and webhook delivery, dispatched off-thread.
+- FastAPI + PostgreSQL/PostGIS signal ingestion with a Leaflet dashboard.
+- Connection pooling; `ROW_NUMBER()` replacing a non-deterministic
+  `DISTINCT ON` for latest-position-per-device.
