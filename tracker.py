@@ -1,124 +1,169 @@
-import requests
-import time
-import random
-import os
-import base64
+"""
+Local simulator for the Incog backend.
+
+Stands in for the Android client during development: walks a fake device around
+a starting point, posts emergency signals, and occasionally attaches an
+AES-256-GCM evidence blob in the same wire format the security module produces.
+
+This is a development tool, not part of the deployed service.
+"""
+
+import json
 import logging
+import os
+import random
+import time
+import uuid
+
+import requests
 from dotenv import load_dotenv
-from cryptography.fernet import Fernet
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from evidence_crypto import encrypt_evidence, load_key
 
-# Load the secrets
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("tracker")
+
 load_dotenv()
 
-# Configuration from environment
-URL = os.getenv("C2_SERVER_URL", "https://incog-c2-backend.onrender.com/api/v1/sos")
-AGENT_SECRET_KEY = os.getenv("AGENT_SECRET_KEY")
-if not AGENT_SECRET_KEY:
-    logger.error("CRITICAL: AGENT_SECRET_KEY not found in .env!")
-    exit(1)
+URL = os.getenv("C2_SERVER_URL", "http://localhost:8000/api/v1/sos")
 
-# Setup Encryption with validation
-def validate_fernet_key(key_str: str) -> Fernet:
+API_KEY = os.getenv("INCOG_API_KEY") or os.getenv("AGENT_SECRET_KEY")
+if not API_KEY:
+    logger.error("INCOG_API_KEY is not set in .env")
+    raise SystemExit(1)
+
+# Evidence is optional: without a key the simulator still exercises the
+# location and alerting path, which is the part that matters most.
+EVIDENCE_KEY = None
+_evidence_key_b64 = os.getenv("EVIDENCE_AES_KEY")
+if _evidence_key_b64:
     try:
-        return Fernet(key_str.encode())
-    except Exception as e:
-        raise ValueError(f"CRITICAL: Invalid ENCRYPTION_KEY - must be valid Fernet key. Error: {e}")
+        EVIDENCE_KEY = load_key(_evidence_key_b64)
+    except ValueError as exc:
+        logger.error(f"{exc}")
+        raise SystemExit(1)
+else:
+    logger.warning("EVIDENCE_AES_KEY not set - sending location signals only.")
 
-ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
-if not ENCRYPTION_KEY:
-    logger.error("CRITICAL: ENCRYPTION_KEY not found in .env!")
-    exit(1)
+DEVICE_ID = os.getenv("DEVICE_ID", "demo-device-01")
 
-try:
-    cipher_suite = validate_fernet_key(ENCRYPTION_KEY)
-except ValueError as e:
-    logger.error(str(e))
-    exit(1)
+# Defaults to BMSCE, Bangalore.
+current_lat = float(os.getenv("SIM_START_LAT", "12.9412"))
+current_lon = float(os.getenv("SIM_START_LON", "77.5652"))
 
-DEVICE_ID = "Agent-X-Delta"
+POLL_INTERVAL = 3
+MAX_CONSECUTIVE_FAILURES = 10
+MAX_BACKOFF = 300
+EVIDENCE_CHANCE_IN = 10  # roughly one signal in ten carries evidence
 
-# Starting coordinates (Central London)
-current_lat = 51.5074
-current_lon = -0.1278
 
-logger.info("=" * 50)
-logger.info(f"📡 ACTIVATING SECURE TRACKER FOR: {DEVICE_ID}")
-logger.info(f"Target URL: {URL}")
-logger.info("=" * 50)
+def build_evidence_package() -> bytes:
+    """
+    Build a payload shaped like the security module's EvidencePackage.
+
+    Mirrors EvidencePackage.kt / AIResult.kt so the backend's parsing and
+    triage-metadata extraction get exercised for real.
+    """
+    session_id = str(uuid.uuid4())
+    now_ms = int(time.time() * 1000)
+
+    package = {
+        "sessionId": session_id,
+        "timestamp": now_ms,
+        "gps": {"lat": current_lat, "lng": current_lon},
+        # The real client attaches a compressed audio buffer here.
+        "audioBase64": "",
+        "featureVector": {
+            "peakAcceleration": round(random.uniform(12.0, 30.0), 3),
+            "motionVariance": round(random.uniform(0.5, 6.0), 3),
+            "audioEnergy": round(random.uniform(0.2, 0.95), 3),
+            "gpsVelocity": round(random.uniform(0.0, 4.0), 3),
+            "possibleFall": random.random() < 0.3,
+        },
+        "aiResult": {
+            "SessionID": session_id,
+            "TimestampMs": now_ms,
+            "Prediction": "emergency",
+            "Confidence": round(random.uniform(0.76, 0.99), 4),
+            "EmergencyStatus": True,
+            "DecisionThreshold": 0.75,
+            "SHAP": {"audioEnergy": 0.41, "peakAcceleration": 0.33, "gpsVelocity": -0.12},
+            "LIME": {"audioEnergy": 0.38, "peakAcceleration": 0.29, "gpsVelocity": -0.09},
+        },
+    }
+    return json.dumps(package).encode("utf-8")
+
+
+logger.info("Incog tracker simulator")
+logger.info(f"Device: {DEVICE_ID}")
+logger.info(f"Target: {URL}")
+logger.info("Ctrl+C to stop.")
 
 consecutive_failures = 0
-MAX_CONSECUTIVE_FAILURES = 10
-POLL_INTERVAL = 3
-MAX_BACKOFF = 300
 
 try:
     while True:
-        # Move the agent randomly simulating walking
+        # Wander a little, simulating someone walking.
         current_lat += random.uniform(-0.002, 0.002)
         current_lon += random.uniform(-0.002, 0.002)
+        current_lat = max(-90.0, min(90.0, current_lat))
+        current_lon = max(-180.0, min(180.0, current_lon))
 
-        # Clamp to valid coordinates
-        current_lat = max(-90, min(90, current_lat))
-        current_lon = max(-180, min(180, current_lon))
-
-        # Package the standard GPS data
         payload = {
             "device_id": DEVICE_ID,
             "latitude": current_lat,
             "longitude": current_lon,
-            "is_stealth_active": True
+            "is_stealth_active": True,
         }
 
-        # 10% chance to send an encrypted secret message
-        if random.randint(1, 10) == 1:
-            secret_message = f"Intercepted intel at {time.strftime('%H:%M:%S')} - Awaiting extraction."
-            encrypted_bytes = cipher_suite.encrypt(secret_message.encode('utf-8'))
-            payload["encrypted_evidence"] = base64.b64encode(encrypted_bytes).decode('utf-8')
-            logger.info(f"🔒 Encrypted payload attached: '{secret_message}'")
+        if EVIDENCE_KEY and random.randint(1, EVIDENCE_CHANCE_IN) == 1:
+            payload["encrypted_evidence"] = encrypt_evidence(
+                build_evidence_package(), EVIDENCE_KEY
+            )
+            logger.info("Attaching encrypted evidence to this signal")
 
-        # Package the secret API key into headers
-        headers = {
-            "X-Agent-Key": AGENT_SECRET_KEY,
-            "Content-Type": "application/json"
-        }
+        headers = {"X-Incog-Key": API_KEY, "Content-Type": "application/json"}
 
         try:
-            logger.info(f"[{time.strftime('%H:%M:%S')}] 📤 Sending packet to {URL}...")
             response = requests.post(URL, json=payload, headers=headers, timeout=10)
 
             if response.status_code == 200:
-                logger.info(f"[{time.strftime('%H:%M:%S')}] ✅ Target updated: ({current_lat:.4f}, {current_lon:.4f})")
+                body = response.json()
+                suffix = " (evidence stored)" if body.get("evidence_stored") else ""
+                logger.info(
+                    f"Signal accepted: ({current_lat:.4f}, {current_lon:.4f}){suffix}"
+                )
                 consecutive_failures = 0
             elif response.status_code == 403:
-                logger.error(f"[{time.strftime('%H:%M:%S')}] 🚨 ACCESS DENIED: Invalid API Key")
+                logger.error("Rejected: invalid or missing API key")
                 consecutive_failures += 1
-            elif response.status_code == 400:
-                logger.error(f"[{time.strftime('%H:%M:%S')}] ❌ Bad Request: {response.text}")
+            elif response.status_code == 503:
+                logger.error(f"Server cannot accept evidence: {response.text}")
                 consecutive_failures += 1
             else:
-                logger.error(f"[{time.strftime('%H:%M:%S')}] ❌ Server error {response.status_code}: {response.text}")
+                logger.error(f"Server returned {response.status_code}: {response.text}")
                 consecutive_failures += 1
 
         except requests.exceptions.Timeout:
-            logger.warning(f"[{time.strftime('%H:%M:%S')}] ⏳ Connection timeout")
+            logger.warning("Request timed out")
             consecutive_failures += 1
         except requests.exceptions.ConnectionError:
-            logger.warning(f"[{time.strftime('%H:%M:%S')}] 🌐 Connection error - server may be offline")
+            logger.warning("Connection failed - is the server running?")
             consecutive_failures += 1
-        except Exception as e:
-            logger.error(f"[{time.strftime('%H:%M:%S')}] ❌ Unexpected error: {e}")
+        except Exception as exc:
+            logger.error(f"Unexpected error: {exc}")
             consecutive_failures += 1
 
-        # Exponential backoff on consecutive failures
         if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-            backoff = min(2 ** (consecutive_failures - MAX_CONSECUTIVE_FAILURES), MAX_BACKOFF)
-            logger.critical(f"❌ {consecutive_failures} consecutive failures. Backing off for {backoff}s")
+            backoff = min(
+                2 ** (consecutive_failures - MAX_CONSECUTIVE_FAILURES), MAX_BACKOFF
+            )
+            logger.critical(
+                f"{consecutive_failures} consecutive failures; backing off {backoff}s"
+            )
             time.sleep(backoff)
         else:
             time.sleep(POLL_INTERVAL)
 
 except KeyboardInterrupt:
-    logger.info("\n🛑 Tracker deactivated.")
+    logger.info("Tracker stopped.")
