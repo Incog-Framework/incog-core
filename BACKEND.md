@@ -13,6 +13,49 @@ accurate.
 
 ---
 
+## Integration status
+
+**Not yet ready to deploy.** Three blockers, none of them code:
+
+| # | Blocker | Owner |
+|---|---|---|
+| 1 | Rotate the DB URL, API key and encryption key. Early commits in this repo carried a `.env`; deleting the file did not remove it from history, so all three must be treated as compromised. | Chirag |
+| 2 | `SecurityOrchestrator.kt` still calls `CryptoManager.generate256BitKey()`, minting a fresh random key per emergency that is shared with nobody. It must load the pre-shared key instead, or evidence cannot decrypt end-to-end. | Gagan |
+| 3 | Run `migrations/001_evidence_encrypted_at_rest.sql` against the live database. `create_all()` does not alter existing tables, so evidence inserts fail without it. | Chirag |
+
+Clear those three and the backend integrates.
+
+### What is and is not verified
+
+The test suite stubs the database session, so it runs anywhere — but that
+means the SQL itself has **never executed**.
+
+| Verified by tests | Not yet exercised against a real database |
+|---|---|
+| AES-256-GCM format vs `CryptoManager.kt`, incl. a fixed known-answer vector | The `SRID=4326;POINT(...)` PostGIS insert |
+| Tampering, wrong keys, truncation, non-base64 all rejected | The `ROW_NUMBER()` latest-position query |
+| Evidence stored as ciphertext, never plaintext | `LargeBinary` → `BYTEA` round-trip |
+| Both auth headers; constant-time comparison | GiST index creation |
+| Payload validation and coordinate bounds | `migrations/001` itself |
+| Alert dispatched once per signal | Twilio (no real SMS has been sent) |
+
+Treat the right-hand column as the risk surface for integration testing.
+
+### Also outstanding
+
+- `.env.example` is stale — it still lists `ENCRYPTION_KEY` and
+  `AGENT_SECRET_KEY`. Use the variable table below as the source of truth.
+- `.gitignore` line 219 has `.env` written in UTF-16, so git cannot parse it as
+  a pattern. `.env` is ignored only because a valid rule exists at line 151.
+  Worth fixing; left alone here as it is shared root config.
+- Backend relocation into `c2-backend/` and the Render start command were
+  deferred to keep this change reviewable.
+- SHAP/LIME: `AIResult` already carries `SHAP`/`LIME` maps, so there is a
+  natural seam for a server-side explainer. Needs a call with Lipika on whether
+  it runs on ingest or on demand.
+
+---
+
 ## Layout
 
 | File | Purpose |
