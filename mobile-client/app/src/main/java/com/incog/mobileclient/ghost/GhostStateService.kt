@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.incog.mobileclient.ai.EmergencyClassifier
 import com.incog.mobileclient.handoff.SensorPacket
 import com.incog.mobileclient.sensors.AudioBufferCollector
 import com.incog.mobileclient.sensors.LocationCollector
@@ -47,6 +48,10 @@ class GhostStateService : Service() {
     private var sensorCollector: SensorCollector? = null
     private var locationCollector: LocationCollector? = null
     private var audioCollector: AudioBufferCollector? = null
+
+    // Phase 4-6 on-device AI (Decision 2). Fires the Phase 7 handoff once per session.
+    private var classifier: EmergencyClassifier? = null
+    private var emergencyHandled = false
 
     private val handler = Handler(Looper.getMainLooper())
     private val snapshotRunnable = object : Runnable {
@@ -96,8 +101,16 @@ class GhostStateService : Service() {
             LocationCollector(this).also { it.start(); locationCollector = it }; true
         } else false
 
+        emergencyHandled = false
+        classifier = try {
+            EmergencyClassifier(this)
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to load emergency model — AI disabled this session.", t)
+            null
+        }
+
         startSnapshotLogging()
-        Log.i(TAG, "Ghost State ACTIVATED — SessionID=$sessionId (mic=$micStarted, gps=$gpsStarted)")
+        Log.i(TAG, "Ghost State ACTIVATED — SessionID=$sessionId (mic=$micStarted, gps=$gpsStarted, ai=${classifier != null})")
     }
 
     private fun stopSession() {
@@ -106,6 +119,8 @@ class GhostStateService : Service() {
         sensorCollector?.stop(); sensorCollector = null
         locationCollector?.stop(); locationCollector = null
         audioCollector?.stop(); audioCollector = null
+        classifier?.close(); classifier = null
+        emergencyHandled = false
         isRunning = false
         currentSessionId = null
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -176,6 +191,29 @@ class GhostStateService : Service() {
                 "audioMs=${packet.audioBufferedMs} accelN=${packet.accelSamples.size} " +
                 "gyroN=${packet.gyroSamples.size}"
         )
+        runInference(packet)
+    }
+
+    /** Phase 5-6: on-device inference on each snapshot. Fires the Phase 7 handoff once per session. */
+    private fun runInference(packet: SensorPacket) {
+        val result = classifier?.classify(packet) ?: return
+        Log.i(
+            TAG,
+            "AI prediction=${result.prediction} confidence=${"%.4f".format(result.confidence)} " +
+                "emergency=${result.emergencyStatus} features=${result.features}"
+        )
+        if (result.emergencyStatus && !emergencyHandled) {
+            emergencyHandled = true
+            Log.w(
+                TAG,
+                "EMERGENCY CONFIRMED (confidence ${"%.4f".format(result.confidence)} >= " +
+                    "${result.decisionThreshold}) — Phase 7 handoff point. SessionID=${result.sessionId}"
+            )
+            // TODO(integration, Decision 1): hand off to the security pipeline once Gagan's module
+            // is merged into the app — SecurityOrchestrator.processEmergencyTrigger(
+            //   sessionId, timestamp, gps, featureVector, aiResult, audioBytes, carrierImages).
+            // For now the confirmed emergency is logged only.
+        }
     }
 
     private fun createNotificationChannel() {
