@@ -13,13 +13,26 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.provider.Settings
+import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.incog.incogsecuritycore.AIResult
+import com.incog.incogsecuritycore.FeatureVector
+import com.incog.incogsecuritycore.GPSData
+import com.incog.incogsecuritycore.SecurityOrchestrator
+import com.incog.mobileclient.ai.AiResult
 import com.incog.mobileclient.ai.EmergencyClassifier
 import com.incog.mobileclient.handoff.SensorPacket
+import com.incog.mobileclient.network.EvidenceUploader
 import com.incog.mobileclient.sensors.AudioBufferCollector
 import com.incog.mobileclient.sensors.LocationCollector
 import com.incog.mobileclient.sensors.SensorCollector
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 /**
@@ -52,6 +65,9 @@ class GhostStateService : Service() {
     // Phase 4-6 on-device AI (Decision 2). Fires the Phase 7 handoff once per session.
     private var classifier: EmergencyClassifier? = null
     private var emergencyHandled = false
+
+    // Phase 7-11 handoff runs off the main thread and must outlive a single snapshot tick.
+    private val emergencyScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val handler = Handler(Looper.getMainLooper())
     private val snapshotRunnable = object : Runnable {
@@ -207,13 +223,73 @@ class GhostStateService : Service() {
             Log.w(
                 TAG,
                 "EMERGENCY CONFIRMED (confidence ${"%.4f".format(result.confidence)} >= " +
-                    "${result.decisionThreshold}) — Phase 7 handoff point. SessionID=${result.sessionId}"
+                    "${result.decisionThreshold}) — running Phase 7-11 handoff. SessionID=${result.sessionId}"
             )
-            // TODO(integration, Decision 1): hand off to the security pipeline once Gagan's module
-            // is merged into the app — SecurityOrchestrator.processEmergencyTrigger(
-            //   sessionId, timestamp, gps, featureVector, aiResult, audioBytes, carrierImages).
-            // For now the confirmed emergency is logged only.
+            handleEmergency(result, packet)
         }
+    }
+
+    /**
+     * Phase 7 -> 11: package + AES-256-GCM encrypt the evidence (Gagan's security module) and
+     * upload it to the backend (Chirag). Runs off the main thread; fires once per session.
+     */
+    private fun handleEmergency(result: AiResult, packet: SensorPacket) {
+        val audioBytes = audioCollector?.snapshotPcm() ?: ByteArray(0)
+        val location = packet.latestLocation
+        val latitude = location?.latitude ?: 0.0
+        val longitude = location?.longitude ?: 0.0
+        val deviceId = deviceId()
+
+        // Map the on-device AI types to the security module's evidence types. SHAP/LIME are empty
+        // here — they're computed server-side/async (Decision 2) and attached to the record there.
+        val gps = GPSData(lat = latitude, lng = longitude)
+        val featureVector = FeatureVector(
+            peakAcceleration = result.features.peakAcceleration,
+            motionVariance = result.features.motionVariance,
+            audioEnergy = result.features.audioEnergy,
+            gpsVelocity = result.features.gpsVelocity,
+            possibleFall = result.features.possibleFall
+        )
+        val aiResult = AIResult(
+            sessionId = result.sessionId,
+            timestampMs = result.timestampMs,
+            prediction = result.prediction,
+            confidence = result.confidence,
+            emergencyStatus = result.emergencyStatus,
+            decisionThreshold = result.decisionThreshold,
+            shap = emptyMap(),
+            lime = emptyMap()
+        )
+
+        emergencyScope.launch {
+            // embedAtRest=false: the network path uploads the encrypted blob directly (Decision 1);
+            // the stego at-rest copy is skipped for the MVP (no carrier images bundled yet).
+            val pipeline = SecurityOrchestrator.processEmergencyTrigger(
+                sessionId = result.sessionId,
+                timestamp = result.timestampMs,
+                gps = gps,
+                featureVector = featureVector,
+                aiResult = aiResult,
+                audioBytes = audioBytes,
+                embedAtRest = false
+            )
+            if (pipeline == null) {
+                Log.w(TAG, "Security pipeline discarded the trigger (non-emergency).")
+                return@launch
+            }
+            val blobBase64 = Base64.encodeToString(pipeline.encryptedBlob, Base64.NO_WRAP)
+            val ok = EvidenceUploader.upload(deviceId, latitude, longitude, blobBase64)
+            Log.i(TAG, "Evidence upload ${if (ok) "succeeded" else "FAILED"} for ${result.sessionId}")
+        }
+    }
+
+    @Suppress("HardwareIds")
+    private fun deviceId(): String =
+        Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown-device"
+
+    override fun onDestroy() {
+        super.onDestroy()
+        emergencyScope.cancel()
     }
 
     private fun createNotificationChannel() {
