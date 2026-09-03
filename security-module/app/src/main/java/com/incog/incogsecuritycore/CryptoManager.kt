@@ -1,23 +1,67 @@
 package com.incog.incogsecuritycore
 
+import android.util.Base64
+import android.util.Log
 import java.security.SecureRandom
 import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 object CryptoManager {
+    private const val TAG = "CryptoManager"
     private const val AES_GCM_NO_PADDING = "AES/GCM/NoPadding"
     private const val GCM_IV_LENGTH = 12 // 12 bytes / 96 bits standard for GCM
     private const val GCM_TAG_LENGTH = 128 // 128-bit authentication tag
 
+    /** AES-256 means a 32-byte key. */
+    const val AES_KEY_LENGTH_BYTES = 32
+
     /**
-     * Generates a random 256-bit AES secret key.
+     * Loads the AES-256 key shared with the backend (team DECISION 1).
+     *
+     * The key is injected at build time from local.properties or the
+     * INCOG_EVIDENCE_KEY_BASE64 environment variable - see app/build.gradle.kts.
+     * It is deliberately NOT a fresh per-session key: the backend loads the
+     * same value from its own config so it can decrypt what we upload.
      */
-    fun generate256BitKey(): SecretKey {
-        val keyGen = KeyGenerator.getInstance("AES")
-        keyGen.init(256, SecureRandom())
-        return keyGen.generateKey()
+    fun loadSharedKey(): SecretKey =
+        parseSharedKey(
+            base64Key = BuildConfig.EVIDENCE_KEY_BASE64,
+            isPlaceholder = BuildConfig.EVIDENCE_KEY_IS_PLACEHOLDER
+        )
+
+    /**
+     * Parses a Base64-encoded 256-bit key. Exposed separately from
+     * [loadSharedKey] so tests can supply a key without a rebuild.
+     */
+    @JvmOverloads
+    fun parseSharedKey(base64Key: String, isPlaceholder: Boolean = false): SecretKey {
+        require(base64Key.isNotBlank()) {
+            "Shared evidence key is not configured. Set incog.evidenceKeyBase64 in " +
+                "local.properties or INCOG_EVIDENCE_KEY_BASE64 in the environment."
+        }
+
+        if (isPlaceholder) {
+            Log.w(
+                TAG,
+                "Using the PLACEHOLDER evidence key. Evidence encrypted with it will NOT " +
+                    "decrypt on the backend - set the real shared key before shipping."
+            )
+        }
+
+        val keyBytes = try {
+            Base64.decode(base64Key, Base64.NO_WRAP)
+        } catch (error: IllegalArgumentException) {
+            throw IllegalArgumentException("Shared evidence key is not valid Base64.", error)
+        }
+
+        require(keyBytes.size == AES_KEY_LENGTH_BYTES) {
+            "Shared evidence key must be $AES_KEY_LENGTH_BYTES bytes (AES-256) but was " +
+                "${keyBytes.size} bytes."
+        }
+
+        return SecretKeySpec(keyBytes, "AES")
     }
 
     /**
