@@ -3,6 +3,7 @@ package com.incog.incogsecuritycore
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.util.Base64
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -66,27 +67,41 @@ class Phase7To10PipelineTest {
     private val sampleGps = GPSData(lat = 12.9716, lng = 77.5946)
 
     // Placeholder for the real captured audio buffer: raw PCM capture/flush
-    // lives in mobile-client's AudioBufferCollector, which isn't in this
-    // repo yet, so this stands in for a flushed/compressed audio file.
+    // lives in mobile-client's AudioBufferCollector, which this module does
+    // not integrate with yet, so this stands in for a flushed audio file.
     private val sampleAudioBytes = ByteArray(512) { it.toByte() }
 
-    @Test
-    fun `emergency trigger produces stego images that round-trip back to the original evidence`() {
-        val carriers = listOf(
+    private suspend fun runPipeline(
+        aiResult: AIResult = sampleAiResult,
+        sessionId: String = "SESS-9021",
+        carrierImages: List<Bitmap> = listOf(
             carrierBitmap(Color.GREEN),
             carrierBitmap(Color.BLUE),
             carrierBitmap(Color.RED)
-        )
+        ),
+        embedAtRest: Boolean = true
+    ): PipelineResult? = SecurityOrchestrator.processEmergencyTrigger(
+        sessionId = sessionId,
+        timestamp = 1734900000L,
+        gps = sampleGps,
+        featureVector = sampleFeatureVector,
+        aiResult = aiResult,
+        audioBytes = sampleAudioBytes,
+        carrierImages = carrierImages,
+        embedAtRest = embedAtRest
+    )
 
-        val result = SecurityOrchestrator.processEmergencyTrigger(
-            sessionId = "SESS-9021",
-            timestamp = 1734900000L,
-            gps = sampleGps,
-            featureVector = sampleFeatureVector,
-            aiResult = sampleAiResult,
-            audioBytes = sampleAudioBytes,
-            carrierImages = carriers
-        )
+    private fun assertRecoveredEvidenceMatches(evidence: EvidencePackage, sessionId: String) {
+        assertEquals(sessionId, evidence.sessionId)
+        assertEquals(sampleGps, evidence.gps)
+        assertEquals(sampleFeatureVector, evidence.featureVector)
+        assertEquals(sampleAiResult, evidence.aiResult)
+        assertEquals(Base64.encodeToString(sampleAudioBytes, Base64.NO_WRAP), evidence.audioBase64)
+    }
+
+    @Test
+    fun `emergency trigger produces stego images that round-trip back to the original evidence`() = runBlocking {
+        val result = runPipeline()
 
         assertNotNull("Emergency trigger should produce a pipeline result", result)
         val stegoImages = result!!.stegoImages
@@ -96,37 +111,86 @@ class Phase7To10PipelineTest {
         // decrypt, and confirm we recover the exact evidence package.
         val fragments = stegoImages.map { SecurityExtractor.extractFromBitmap(it) }
         val reassembled = FragmentationManager.reassembleData(fragments)
-        val decrypted = CryptoManager.decrypt(reassembled, result.secretKey)
-        val recovered = EvidencePackage.fromByteArray(decrypted)
+        val decrypted = CryptoManager.decrypt(reassembled, CryptoManager.loadSharedKey())
 
-        assertEquals("SESS-9021", recovered.sessionId)
-        assertEquals(sampleGps, recovered.gps)
-        assertEquals(sampleFeatureVector, recovered.featureVector)
-        assertEquals(sampleAiResult, recovered.aiResult)
-        assertEquals(Base64.encodeToString(sampleAudioBytes, Base64.NO_WRAP), recovered.audioBase64)
+        assertRecoveredEvidenceMatches(EvidencePackage.fromByteArray(decrypted), "SESS-9021")
 
         writeStegoImagesForInspection(stegoImages)
     }
 
+    /**
+     * DECISION 1: the blob the app uploads over TLS must decrypt on its own
+     * with the shared config key - no stego, no per-session key handoff.
+     */
     @Test
-    fun `non-emergency AI result is discarded silently`() {
+    fun `exposed encrypted blob decrypts directly with the shared config key`() = runBlocking {
+        val result = runPipeline()
+        assertNotNull(result)
+
+        val decrypted = CryptoManager.decrypt(result!!.encryptedBlob, CryptoManager.loadSharedKey())
+
+        assertRecoveredEvidenceMatches(EvidencePackage.fromByteArray(decrypted), "SESS-9021")
+    }
+
+    /**
+     * Stego images and the uploadable blob are the same evidence, so a device
+     * that only uploads never has to pay for the pixel work.
+     */
+    @Test
+    fun `blob is still produced when at-rest embedding is skipped`() = runBlocking {
+        val result = runPipeline(carrierImages = emptyList(), embedAtRest = false)
+
+        assertNotNull(result)
+        assertTrue("No stego images expected", result!!.stegoImages.isEmpty())
+        assertTrue("Blob should still be produced", result.encryptedBlob.isNotEmpty())
+
+        val decrypted = CryptoManager.decrypt(result.encryptedBlob, CryptoManager.loadSharedKey())
+        assertRecoveredEvidenceMatches(EvidencePackage.fromByteArray(decrypted), "SESS-9021")
+    }
+
+    /**
+     * Out-of-order upload/storage must still reassemble, now that fragments
+     * carry their own index/total header.
+     */
+    @Test
+    fun `shuffled stego images still reassemble into the original evidence`() = runBlocking {
+        val result = runPipeline(sessionId = "SESS-9023")
+        assertNotNull(result)
+
+        val shuffledFragments = result!!.stegoImages
+            .map { SecurityExtractor.extractFromBitmap(it) }
+            .reversed()
+
+        val reassembled = FragmentationManager.reassembleData(shuffledFragments)
+        val decrypted = CryptoManager.decrypt(reassembled, CryptoManager.loadSharedKey())
+
+        assertRecoveredEvidenceMatches(EvidencePackage.fromByteArray(decrypted), "SESS-9023")
+    }
+
+    @Test
+    fun `non-emergency AI result is discarded silently`() = runBlocking {
         val nonEmergency = sampleAiResult.copy(
             prediction = "Normal",
             confidence = 0.12,
             emergencyStatus = false
         )
 
-        val result = SecurityOrchestrator.processEmergencyTrigger(
-            sessionId = "SESS-9022",
-            timestamp = 1734900000L,
-            gps = sampleGps,
-            featureVector = sampleFeatureVector,
-            aiResult = nonEmergency,
-            audioBytes = sampleAudioBytes,
-            carrierImages = listOf(carrierBitmap(Color.GREEN))
-        )
+        val result = runPipeline(aiResult = nonEmergency, sessionId = "SESS-9022")
 
         assertNull("Non-emergency AI result must not produce a pipeline result", result)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `carrier pool too small for the chunk size is rejected up front`() {
+        runBlocking {
+            // 16x16 = 256 pixels = 32 payload bytes, far below a 256-byte fragment.
+            SecurityOrchestrator.hideAtRest(
+                encryptedBlob = ByteArray(1024) { it.toByte() },
+                carrierImages = listOf(
+                    Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+                )
+            )
+        }
     }
 
     private fun writeStegoImagesForInspection(stegoImages: List<Bitmap>) {

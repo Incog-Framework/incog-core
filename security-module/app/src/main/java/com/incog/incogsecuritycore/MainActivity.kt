@@ -8,9 +8,19 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.Toast
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 class MainActivity : Activity() {
+
+    // Pixel work runs on Dispatchers.Default; results come back on Main.
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -24,14 +34,19 @@ class MainActivity : Activity() {
         button.text = "Run Security Pipeline"
 
         button.setOnClickListener {
-            runPipelineTest()
+            scope.launch { runPipelineTest() }
         }
 
         layout.addView(button)
         setContentView(layout)
     }
 
-    private fun runPipelineTest() {
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    private suspend fun runPipelineTest() {
         // 1. Sample Evidence: Bangalore Location & Timestamp
         val locationData = """
         {
@@ -46,27 +61,28 @@ class MainActivity : Activity() {
         Log.d("IncogDemo", "--- [ORIGINAL DATA] ---")
         Log.d("IncogDemo", locationData)
 
-        // 2. Generate Key & Encrypt
-        // 2. Generate Key & Encrypt
-        val secretKey = CryptoManager.generate256BitKey()
-        val encryptedBlob = CryptoManager.encrypt(locationData.toByteArray(Charsets.UTF_8), secretKey)
-        Log.d("IncogDemo", "Encrypted Size: ${encryptedBlob.size} bytes (AES-256-GCM)")
+        val decryptedJson = withContext(Dispatchers.Default) {
+            // 2. Load the shared key (build-time config) & Encrypt
+            val secretKey = CryptoManager.loadSharedKey()
+            val encryptedBlob = CryptoManager.encrypt(locationData.toByteArray(Charsets.UTF_8), secretKey)
+            Log.d("IncogDemo", "Encrypted Size: ${encryptedBlob.size} bytes (AES-256-GCM)")
 
-        // 3. Create Carrier Image (500x500 green PNG) & Embed Data
-        val carrierBitmap = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888)
-        carrierBitmap.eraseColor(Color.GREEN)
-        val stegoImage = SteganographyEngine.embedData(carrierBitmap, encryptedBlob)
-        Log.d("IncogDemo", "Stego Image Created successfully.")
+            // 3. Create Carrier Image (500x500 green PNG) & Embed Data
+            val carrierBitmap = Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888)
+            carrierBitmap.eraseColor(Color.GREEN)
+            val stegoImage = SteganographyEngine.embedData(carrierBitmap, encryptedBlob)
+            Log.d("IncogDemo", "Stego Image Created successfully.")
 
-        // ----------------------------------------------------
-        // INVERSE EXTRACTION PIPELINE (Simulating Backend/Receiver)
-        // ----------------------------------------------------
+            // ----------------------------------------------------
+            // INVERSE EXTRACTION PIPELINE (Simulating Backend/Receiver)
+            // ----------------------------------------------------
 
-        // 4. Extract raw encrypted bits from the image pixels
-        val extractedEncryptedBlob = SecurityExtractor.extractFromBitmap(stegoImage)
+            // 4. Extract raw encrypted bits from the image pixels
+            val extractedEncryptedBlob = SecurityExtractor.extractFromBitmap(stegoImage)
 
-        // 5. Decrypt using the matching AES Key
-        val decryptedJson = SecurityExtractor.decryptPayload(extractedEncryptedBlob, secretKey)
+            // 5. Decrypt using the same shared AES key
+            SecurityExtractor.decryptPayload(extractedEncryptedBlob, secretKey)
+        }
 
         Log.d("IncogDemo", "--- [RECOVERED DATA] ---")
         Log.d("IncogDemo", decryptedJson)
