@@ -34,6 +34,25 @@ class AudioBufferCollector {
     val bufferedMs: Long
         get() = (bytesBuffered.toLong() * 1000L) / (SAMPLE_RATE * BYTES_PER_SAMPLE)
 
+    /**
+     * Snapshot the buffered PCM in chronological order (oldest sample first). This is the flushed
+     * audio handed to the security pipeline as evidence. Empty if nothing has been captured yet.
+     */
+    fun snapshotPcm(): ByteArray = synchronized(ring) {
+        if (bytesBuffered == 0) return@synchronized ByteArray(0)
+        val out = ByteArray(bytesBuffered)
+        if (bytesBuffered < ringCapacityBytes) {
+            // Not wrapped yet: chronological data is ring[0 until bytesBuffered).
+            System.arraycopy(ring, 0, out, 0, bytesBuffered)
+        } else {
+            // Full & wrapped: the oldest byte is at writePos.
+            val tail = ringCapacityBytes - writePos
+            System.arraycopy(ring, writePos, out, 0, tail)
+            System.arraycopy(ring, 0, out, tail, writePos)
+        }
+        out
+    }
+
     @SuppressLint("MissingPermission")
     fun start(): Boolean {
         val minBuffer = AudioRecord.getMinBufferSize(
