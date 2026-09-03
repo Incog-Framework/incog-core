@@ -1,7 +1,7 @@
 {
-    "Timestamp": "2026-08-25T00:04:49.708161",
+    "Timestamp": "2026-09-03T01:05:00.748111",
     "Prediction": "Emergency",
-    "Confidence": 0.9999,
+    "Confidence": 1.0,
     "EmergencyStatus": true,
     "DecisionThreshold": 0.8,
     "Intervention": {
@@ -10,5 +10,7 @@
         "Message": "Potential emergency condition detected.",
         "RecommendedAction": "Initiate emergency response."
     },
-    "XAIAvailable": true
+    "XAIAvailable": true,
+    "SessionID": "SESS-DEMO0001",
+    "SessionTimestampMs": 1734900000000
 }

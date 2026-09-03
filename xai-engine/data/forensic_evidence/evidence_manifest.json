@@ -1,31 +1,33 @@
 {
-    "EvidenceID": "20260825_000450",
-    "Timestamp": "2026-08-25T00:04:50.308862",
+    "EvidenceID": "20260903_010500",
+    "Timestamp": "2026-09-03T01:05:00.897813",
     "Files": [
         {
             "filename": "feature_vector.csv",
-            "sha256": "57c873cc3c878c2d31b896213d9180f4b5ac1602dfc18f578c9ba5e915de8b64",
+            "sha256": "f25bf1990055e1a36a6892c9bb5ecdd275f8c180f4c94f499a9855ff9c24cad5",
             "size_bytes": 103
         },
         {
             "filename": "prediction_tflite.json",
-            "sha256": "6c30bb9625549bb2a62c373ceb97ca964376ec48d5c39f817e51e75436ea7fd7",
-            "size_bytes": 62
+            "sha256": "2c5826c828710f944344fc6575345a216042f32df71d14dd10043d20ac392a6c",
+            "size_bytes": 101
         },
         {
             "filename": "decision.json",
-            "sha256": "5148339c874165c380e20dc4a806ae7be2186b7c911f2c9715679e9ef07ec5d4",
-            "size_bytes": 115
+            "sha256": "fcd939a1d95af23b9e98e25fc4b682c47f85a305528a08de2b66365002c3fd4f",
+            "size_bytes": 182
         },
         {
             "filename": "xai_output.json",
-            "sha256": "f46c9dce0441083e7f4a2f75b54989e7602d4bb0c945414670a3e5fc8225f02c",
-            "size_bytes": 587
+            "sha256": "8b857d303a07678bf792aae75e0dbf1e281deebfde0af964d5976b621bb5990d",
+            "size_bytes": 2683
         },
         {
             "filename": "intervention.json",
-            "sha256": "8ac247e9ae1e28d176df4eb4dff75054e2675d39da8698eed6549d529e7ee29c",
-            "size_bytes": 420
+            "sha256": "5aecf408b22226b3ec4282ce2e91b1a72ea9d812f9a4e76f977c68fdb4dab437",
+            "size_bytes": 494
         }
-    ]
+    ],
+    "SessionID": "SESS-DEMO0001",
+    "SessionTimestampMs": 1734900000000
 }

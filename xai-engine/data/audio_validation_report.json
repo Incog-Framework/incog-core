@@ -1,0 +1,108 @@
+{
+    "generated_at": "2026-09-02T19:35:02.348305+00:00",
+    "contract": {
+        "formula": "clamp(audioRmsEnergy / 32768, 0, 1)",
+        "full_scale": 32768.0,
+        "sample_rate_hz": 16000,
+        "encoding": "PCM16 mono"
+    },
+    "level1_arithmetic": {
+        "passed": true,
+        "checks": [
+            {
+                "signal": "silence",
+                "expected_audio_energy": 0.0,
+                "actual_audio_energy": 0.0,
+                "rms": 0.0,
+                "passed": true
+            },
+            {
+                "signal": "full_scale_square",
+                "expected_audio_energy": 1.0,
+                "actual_audio_energy": 1.0,
+                "rms": 32768.0,
+                "passed": true
+            },
+            {
+                "signal": "full_scale_sine_440hz",
+                "expected_audio_energy": 0.707085,
+                "actual_audio_energy": 0.707085,
+                "rms": 23169.77,
+                "passed": true
+            },
+            {
+                "signal": "half_scale_sine_440hz",
+                "expected_audio_energy": 0.353543,
+                "actual_audio_energy": 0.353544,
+                "rms": 11584.94,
+                "passed": true
+            },
+            {
+                "signal": "above_full_scale_clamps",
+                "expected_audio_energy": 1.0,
+                "actual_audio_energy": 1.0,
+                "rms": 98304.0,
+                "passed": true
+            }
+        ],
+        "adapter_agreement": [
+            {
+                "audioRmsEnergy": 0.0,
+                "expected_audio_energy": 0.0,
+                "actual_audio_energy": 0.0,
+                "in_unit_range": true,
+                "passed": true
+            },
+            {
+                "audioRmsEnergy": 1.0,
+                "expected_audio_energy": 0.0,
+                "actual_audio_energy": 0.0,
+                "in_unit_range": true,
+                "passed": true
+            },
+            {
+                "audioRmsEnergy": 500.0,
+                "expected_audio_energy": 0.0153,
+                "actual_audio_energy": 0.0153,
+                "in_unit_range": true,
+                "passed": true
+            },
+            {
+                "audioRmsEnergy": 16384.0,
+                "expected_audio_energy": 0.5,
+                "actual_audio_energy": 0.5,
+                "in_unit_range": true,
+                "passed": true
+            },
+            {
+                "audioRmsEnergy": 32768.0,
+                "expected_audio_energy": 1.0,
+                "actual_audio_energy": 1.0,
+                "in_unit_range": true,
+                "passed": true
+            },
+            {
+                "audioRmsEnergy": 99999.0,
+                "expected_audio_energy": 1.0,
+                "actual_audio_energy": 1.0,
+                "in_unit_range": true,
+                "passed": true
+            },
+            {
+                "audioRmsEnergy": -500.0,
+                "expected_audio_energy": 0.0,
+                "actual_audio_energy": 0.0,
+                "in_unit_range": true,
+                "passed": true
+            }
+        ],
+        "establishes": "the Python mapping implements the documented formula and matches the Kotlin one",
+        "does_not_establish": "that real recorded audio produces useful values in [0, 1]"
+    },
+    "level2_calibration": {
+        "status": "NOT_VALIDATED",
+        "profiles": []
+    },
+    "device_validation_outstanding": true,
+    "how_to_close": "Log packet.audioRmsEnergy from GhostStateService during a real Ghost State session - quiet room, normal conversation, shouting, phone in a pocket - and compare the resulting AudioEnergy values against the 0.04-0.91 range the training data assumes."
+}

@@ -1,0 +1,20 @@
+# Real datasets and captures are LARGE and must never enter git history.
+# Fetched/recorded locally per DATA_REQUIREMENTS.md and INTEGRATION.md;
+# only the READMEs that explain the layouts are tracked.
+data/raw/*
+!data/raw/README.md
+
+data/real_packets/*
+!data/real_packets/README.md
+
+# Raw audio / archives, wherever they land
+*.wav
+*.zip
+*.tar.gz
+*.7z
+
+# Generated locally, not part of the handoff contract
+data/session_context.json
+
+__pycache__/
+*.pyc

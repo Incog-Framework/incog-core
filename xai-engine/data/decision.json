@@ -1,6 +1,8 @@
 {
     "EmergencyStatus": true,
     "Prediction": "Emergency",
-    "Confidence": 0.9999,
-    "Threshold": 0.8
+    "Confidence": 1.0,
+    "Threshold": 0.8,
+    "SessionID": "SESS-DEMO0001",
+    "TimestampMs": 1734900000000
 }

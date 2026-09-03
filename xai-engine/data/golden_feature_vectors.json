@@ -1,0 +1,508 @@
+{
+    "description": "SensorPacket -> feature-vector golden cases. Python and Kotlin feature extraction must both reproduce 'expected' to within 1e-4 (float32 sensor samples + rounding mode differ; see xai-engine/CLAUDE.md).",
+    "tolerance": 0.0001,
+    "featureOrder": [
+        "PeakAcceleration",
+        "MotionVariance",
+        "AudioEnergy",
+        "GPSVelocity",
+        "PossibleFall"
+    ],
+    "cases": [
+        {
+            "name": "single_sample_zero_variance",
+            "packet": {
+                "sessionId": "SESS-GOLDEN",
+                "timestampMs": 1700000000000,
+                "latestAccel": {
+                    "timestampMs": 0,
+                    "x": 3.0,
+                    "y": 4.0,
+                    "z": 0.0
+                },
+                "latestGyro": null,
+                "latestLocation": null,
+                "accelSamples": [
+                    {
+                        "timestampMs": 0,
+                        "x": 3.0,
+                        "y": 4.0,
+                        "z": 0.0
+                    }
+                ],
+                "gyroSamples": [],
+                "audioRmsEnergy": 0.0,
+                "audioBufferedMs": 2000
+            },
+            "expected": {
+                "PeakAcceleration": 5.0,
+                "MotionVariance": 0.0,
+                "AudioEnergy": 0.0,
+                "GPSVelocity": 0.0,
+                "PossibleFall": false
+            }
+        },
+        {
+            "name": "two_samples_ddof1_variance",
+            "packet": {
+                "sessionId": "SESS-GOLDEN",
+                "timestampMs": 1700000000000,
+                "latestAccel": {
+                    "timestampMs": 0,
+                    "x": 5.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "latestGyro": null,
+                "latestLocation": {
+                    "timestampMs": 1700000000000,
+                    "latitude": 12.9716,
+                    "longitude": 77.5946,
+                    "speedMps": 2.5,
+                    "accuracyM": 5.0
+                },
+                "accelSamples": [
+                    {
+                        "timestampMs": 0,
+                        "x": 3.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    },
+                    {
+                        "timestampMs": 0,
+                        "x": 5.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    }
+                ],
+                "gyroSamples": [],
+                "audioRmsEnergy": 16384.0,
+                "audioBufferedMs": 2000
+            },
+            "expected": {
+                "PeakAcceleration": 5.0,
+                "MotionVariance": 2.0,
+                "AudioEnergy": 0.5,
+                "GPSVelocity": 2.5,
+                "PossibleFall": false
+            }
+        },
+        {
+            "name": "resting_device_no_fall",
+            "packet": {
+                "sessionId": "SESS-GOLDEN",
+                "timestampMs": 1700000000000,
+                "latestAccel": {
+                    "timestampMs": 19,
+                    "x": 0.8,
+                    "y": 9.6,
+                    "z": 1.2
+                },
+                "latestGyro": null,
+                "latestLocation": {
+                    "timestampMs": 1700000000000,
+                    "latitude": 12.9716,
+                    "longitude": 77.5946,
+                    "speedMps": 1.0,
+                    "accuracyM": 5.0
+                },
+                "accelSamples": [
+                    {
+                        "timestampMs": 0,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 1,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 2,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 3,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 4,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 5,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 6,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 7,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 8,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 9,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 10,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 11,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 12,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 13,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 14,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 15,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 16,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 17,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 18,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 19,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    }
+                ],
+                "gyroSamples": [],
+                "audioRmsEnergy": 500.0,
+                "audioBufferedMs": 2000
+            },
+            "expected": {
+                "PeakAcceleration": 9.7077,
+                "MotionVariance": 0.0,
+                "AudioEnergy": 0.0153,
+                "GPSVelocity": 1.0,
+                "PossibleFall": false
+            }
+        },
+        {
+            "name": "impact_spike_flags_fall",
+            "packet": {
+                "sessionId": "SESS-GOLDEN",
+                "timestampMs": 1700000000000,
+                "latestAccel": {
+                    "timestampMs": 19,
+                    "x": 18.2,
+                    "y": 4.1,
+                    "z": 12.5
+                },
+                "latestGyro": null,
+                "latestLocation": null,
+                "accelSamples": [
+                    {
+                        "timestampMs": 0,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 1,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 2,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 3,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 4,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 5,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 6,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 7,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 8,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 9,
+                        "x": 0.8,
+                        "y": 9.6,
+                        "z": 1.2
+                    },
+                    {
+                        "timestampMs": 10,
+                        "x": 18.2,
+                        "y": 4.1,
+                        "z": 12.5
+                    },
+                    {
+                        "timestampMs": 11,
+                        "x": 18.2,
+                        "y": 4.1,
+                        "z": 12.5
+                    },
+                    {
+                        "timestampMs": 12,
+                        "x": 18.2,
+                        "y": 4.1,
+                        "z": 12.5
+                    },
+                    {
+                        "timestampMs": 13,
+                        "x": 18.2,
+                        "y": 4.1,
+                        "z": 12.5
+                    },
+                    {
+                        "timestampMs": 14,
+                        "x": 18.2,
+                        "y": 4.1,
+                        "z": 12.5
+                    },
+                    {
+                        "timestampMs": 15,
+                        "x": 18.2,
+                        "y": 4.1,
+                        "z": 12.5
+                    },
+                    {
+                        "timestampMs": 16,
+                        "x": 18.2,
+                        "y": 4.1,
+                        "z": 12.5
+                    },
+                    {
+                        "timestampMs": 17,
+                        "x": 18.2,
+                        "y": 4.1,
+                        "z": 12.5
+                    },
+                    {
+                        "timestampMs": 18,
+                        "x": 18.2,
+                        "y": 4.1,
+                        "z": 12.5
+                    },
+                    {
+                        "timestampMs": 19,
+                        "x": 18.2,
+                        "y": 4.1,
+                        "z": 12.5
+                    }
+                ],
+                "gyroSamples": [],
+                "audioRmsEnergy": 24000.0,
+                "audioBufferedMs": 2000
+            },
+            "expected": {
+                "PeakAcceleration": 22.4566,
+                "MotionVariance": 42.7722,
+                "AudioEnergy": 0.7324,
+                "GPSVelocity": 0.0,
+                "PossibleFall": true
+            }
+        },
+        {
+            "name": "audio_above_full_scale_clamps_to_one",
+            "packet": {
+                "sessionId": "SESS-GOLDEN",
+                "timestampMs": 1700000000000,
+                "latestAccel": {
+                    "timestampMs": 0,
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "latestGyro": null,
+                "latestLocation": {
+                    "timestampMs": 1700000000000,
+                    "latitude": 12.9716,
+                    "longitude": 77.5946,
+                    "speedMps": 0.0,
+                    "accuracyM": 5.0
+                },
+                "accelSamples": [
+                    {
+                        "timestampMs": 0,
+                        "x": 1.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    }
+                ],
+                "gyroSamples": [],
+                "audioRmsEnergy": 65536.0,
+                "audioBufferedMs": 2000
+            },
+            "expected": {
+                "PeakAcceleration": 1.0,
+                "MotionVariance": 0.0,
+                "AudioEnergy": 1.0,
+                "GPSVelocity": 0.0,
+                "PossibleFall": false
+            }
+        },
+        {
+            "name": "peak_just_below_fall_threshold",
+            "packet": {
+                "sessionId": "SESS-GOLDEN",
+                "timestampMs": 1700000000000,
+                "latestAccel": {
+                    "timestampMs": 0,
+                    "x": 15.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "latestGyro": null,
+                "latestLocation": {
+                    "timestampMs": 1700000000000,
+                    "latitude": 12.9716,
+                    "longitude": 77.5946,
+                    "speedMps": 0.0,
+                    "accuracyM": 5.0
+                },
+                "accelSamples": [
+                    {
+                        "timestampMs": 0,
+                        "x": 15.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    }
+                ],
+                "gyroSamples": [],
+                "audioRmsEnergy": 0.0,
+                "audioBufferedMs": 2000
+            },
+            "expected": {
+                "PeakAcceleration": 15.0,
+                "MotionVariance": 0.0,
+                "AudioEnergy": 0.0,
+                "GPSVelocity": 0.0,
+                "PossibleFall": false
+            }
+        },
+        {
+            "name": "peak_just_above_fall_threshold",
+            "packet": {
+                "sessionId": "SESS-GOLDEN",
+                "timestampMs": 1700000000000,
+                "latestAccel": {
+                    "timestampMs": 0,
+                    "x": 15.001,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "latestGyro": null,
+                "latestLocation": {
+                    "timestampMs": 1700000000000,
+                    "latitude": 12.9716,
+                    "longitude": 77.5946,
+                    "speedMps": 0.0,
+                    "accuracyM": 5.0
+                },
+                "accelSamples": [
+                    {
+                        "timestampMs": 0,
+                        "x": 15.001,
+                        "y": 0.0,
+                        "z": 0.0
+                    }
+                ],
+                "gyroSamples": [],
+                "audioRmsEnergy": 0.0,
+                "audioBufferedMs": 2000
+            },
+            "expected": {
+                "PeakAcceleration": 15.001,
+                "MotionVariance": 0.0,
+                "AudioEnergy": 0.0,
+                "GPSVelocity": 0.0,
+                "PossibleFall": true
+            }
+        }
+    ]
+}

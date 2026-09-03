@@ -1,0 +1,469 @@
+{
+    "generated_at": "2026-09-02T19:26:56.198757+00:00",
+    "model": "data/emergency_model.tflite",
+    "model_retrained": false,
+    "datasets": [
+        "uci_har",
+        "shimfall"
+    ],
+    "provenance": [
+        {
+            "dataset": "uci_har",
+            "distribution": "inertial_signals",
+            "source": "data\\raw\\uci_har",
+            "citation": "Anguita et al., A Public Domain Dataset for Human Activity Recognition Using Smartphones, ESANN 2013; UCI archive 240",
+            "is_synthetic": false,
+            "is_production_evidence": true,
+            "real_windows": 10299,
+            "subjects": 30,
+            "activities": {
+                "STANDING": 1906,
+                "SITTING": 1777,
+                "LAYING": 1944,
+                "WALKING": 1722,
+                "WALKING_DOWNSTAIRS": 1406,
+                "WALKING_UPSTAIRS": 1544
+            },
+            "sample_rate_hz": 50.0,
+            "window_samples": 128,
+            "window_seconds": 2.56,
+            "window_overlap": "50%",
+            "provides": [
+                "PeakAcceleration",
+                "MotionVariance",
+                "PossibleFall"
+            ],
+            "missing": [
+                "AudioEnergy",
+                "GPSVelocity"
+            ],
+            "caveat": "NEGATIVES ONLY - all six activities are ADLs, so this cannot train a classifier alone, but it is exactly the right corpus for false-positive rate on ordinary activity. Windows are 2.56 s with 50% overlap, not the 20 s the phone scores: PeakAcceleration carries over, MotionVariance is an upper bound. Waist-mounted, which is close to a trouser pocket."
+        },
+        {
+            "dataset": "shimfall",
+            "source": "data\\raw\\shimfall",
+            "citation": "Althobaiti, Katsigiannis, Ramzan, Sensors 20(13) 3777, 2020; Zenodo 3901285; CC-BY-NC-ND-4.0",
+            "is_synthetic": false,
+            "is_production_evidence": true,
+            "real_windows": 525,
+            "subjects": 35,
+            "activities": {
+                "adl_bendingandpickingup": 35,
+                "adl_jump": 35,
+                "adl_liedown": 35,
+                "adl_sittingonchair": 35,
+                "adl_standingfromchair": 35,
+                "adl_walk": 35,
+                "backfall_hard": 35,
+                "backfall_soft": 35,
+                "frontfall_hard": 35,
+                "frontfall_soft": 35,
+                "leftfall_hard": 35,
+                "leftfall_soft": 35,
+                "rightfall_hard": 35,
+                "rightfall_soft": 35,
+                "steepfall_hard": 35
+            },
+            "sample_rate_hz": 50.0,
+            "samples_per_event": 101,
+            "event_duration_s": 2.02,
+            "provides": [
+                "PeakAcceleration",
+                "MotionVariance",
+                "PossibleFall"
+            ],
+            "missing": [
+                "AudioEnergy",
+                "GPSVelocity"
+            ],
+            "units_calibration": {
+                "documented_by_depositors": false,
+                "method": "1 g recovered as the median magnitude of near-static postures (sitting/lying/standing-from-chair)",
+                "gravity_in_dataset_units": 35.4257,
+                "static_files_used": 105,
+                "scale_to_mps2": 0.276823
+            },
+            "caveat": "Chest-strapped sensor, staged falls in a lab - not a phone in a pocket during a real incident. Units are INFERRED from static postures, not documented. Events are 2.02 s while the phone scores up to 20 s, so MotionVariance is an upper bound and is NOT device-comparable; PeakAcceleration is."
+        }
+    ],
+    "windows_total": 10824,
+    "windows_negative": 10509,
+    "windows_positive": 315,
+    "decision_threshold": 0.8,
+    "false_positive_target": 0.05,
+    "unmeasured_channels": {
+        "features": [
+            "AudioEnergy",
+            "GPSVelocity"
+        ],
+        "reason": "no public motion corpus records audio or GPS; these were swept, not imputed",
+        "audio_sweep": [
+            0.0,
+            0.05,
+            0.15,
+            0.35,
+            0.6
+        ],
+        "gps_sweep": [
+            0.0,
+            0.5,
+            1.5,
+            3.0
+        ]
+    },
+    "false_positive_sweep": [
+        {
+            "audio_energy": 0.0,
+            "gps_velocity": 0.0,
+            "false_positive_rate_at_0.80": 0.17784755923494147,
+            "false_positive_rate_at_0.50": 0.24255400133219146,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.0,
+            "gps_velocity": 0.5,
+            "false_positive_rate_at_0.80": 0.1221809877248073,
+            "false_positive_rate_at_0.50": 0.16547721001046722,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.0,
+            "gps_velocity": 1.5,
+            "false_positive_rate_at_0.80": 0.04596060519554668,
+            "false_positive_rate_at_0.50": 0.07450756494433343,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.0,
+            "gps_velocity": 3.0,
+            "false_positive_rate_at_0.80": 0.006090018079741175,
+            "false_positive_rate_at_0.50": 0.008088305262156247,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 0.0,
+            "false_positive_rate_at_0.80": 0.2092492149586069,
+            "false_positive_rate_at_0.50": 0.3053573127795223,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 0.5,
+            "false_positive_rate_at_0.80": 0.13949947663907128,
+            "false_positive_rate_at_0.50": 0.18736321248453705,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 1.5,
+            "false_positive_rate_at_0.80": 0.05833095442002093,
+            "false_positive_rate_at_0.50": 0.08621181844133599,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 3.0,
+            "false_positive_rate_at_0.80": 0.006280331144733086,
+            "false_positive_rate_at_0.50": 0.010372062042059187,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 0.0,
+            "false_positive_rate_at_0.80": 0.325435341136169,
+            "false_positive_rate_at_0.50": 0.39623180131316016,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 0.5,
+            "false_positive_rate_at_0.80": 0.1911694737843753,
+            "false_positive_rate_at_0.50": 0.27833285755067083,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 1.5,
+            "false_positive_rate_at_0.80": 0.08173946141402608,
+            "false_positive_rate_at_0.50": 0.11494909125511467,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 3.0,
+            "false_positive_rate_at_0.80": 0.009896279379579409,
+            "false_positive_rate_at_0.50": 0.019411932629174993,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.35,
+            "gps_velocity": 0.0,
+            "false_positive_rate_at_0.80": 0.39813493196307925,
+            "false_positive_rate_at_0.50": 0.39813493196307925,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.35,
+            "gps_velocity": 0.5,
+            "false_positive_rate_at_0.80": 0.38443239128366163,
+            "false_positive_rate_at_0.50": 0.39813493196307925,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.35,
+            "gps_velocity": 1.5,
+            "false_positive_rate_at_0.80": 0.14777809496621944,
+            "false_positive_rate_at_0.50": 0.20315919687886574,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.35,
+            "gps_velocity": 3.0,
+            "false_positive_rate_at_0.80": 0.0293082120087544,
+            "false_positive_rate_at_0.50": 0.04786373584546579,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.6,
+            "gps_velocity": 0.0,
+            "false_positive_rate_at_0.80": 0.39813493196307925,
+            "false_positive_rate_at_0.50": 0.4711199923874774,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.6,
+            "gps_velocity": 0.5,
+            "false_positive_rate_at_0.80": 0.39813493196307925,
+            "false_positive_rate_at_0.50": 0.452564468550766,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.6,
+            "gps_velocity": 1.5,
+            "false_positive_rate_at_0.80": 0.3648301455894947,
+            "false_positive_rate_at_0.50": 0.39813493196307925,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.6,
+            "gps_velocity": 3.0,
+            "false_positive_rate_at_0.80": 0.06204205918736321,
+            "false_positive_rate_at_0.50": 0.11542487391759444,
+            "windows": 10509
+        }
+    ],
+    "false_positive_rate_range": [
+        0.006090018079741175,
+        0.39813493196307925
+    ],
+    "headline_cell": {
+        "audio_energy": 0.05,
+        "gps_velocity": 1.5,
+        "false_positive_rate_at_0.80": 0.05833095442002093,
+        "false_positive_rate_at_0.50": 0.08621181844133599,
+        "windows": 10509
+    },
+    "recall_sweep": [
+        {
+            "audio_energy": 0.0,
+            "gps_velocity": 0.0,
+            "recall_at_0.80": 0.9587301587301588,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.0,
+            "gps_velocity": 0.5,
+            "recall_at_0.80": 0.9492063492063492,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.0,
+            "gps_velocity": 1.5,
+            "recall_at_0.80": 0.8666666666666667,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.0,
+            "gps_velocity": 3.0,
+            "recall_at_0.80": 0.6793650793650794,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 0.0,
+            "recall_at_0.80": 0.9650793650793651,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 0.5,
+            "recall_at_0.80": 0.9523809523809523,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 1.5,
+            "recall_at_0.80": 0.8761904761904762,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 3.0,
+            "recall_at_0.80": 0.7015873015873015,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 0.0,
+            "recall_at_0.80": 0.9809523809523809,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 0.5,
+            "recall_at_0.80": 0.9619047619047619,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 1.5,
+            "recall_at_0.80": 0.9047619047619048,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 3.0,
+            "recall_at_0.80": 0.7365079365079366,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.35,
+            "gps_velocity": 0.0,
+            "recall_at_0.80": 0.9936507936507937,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.35,
+            "gps_velocity": 0.5,
+            "recall_at_0.80": 0.9936507936507937,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.35,
+            "gps_velocity": 1.5,
+            "recall_at_0.80": 0.9523809523809523,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.35,
+            "gps_velocity": 3.0,
+            "recall_at_0.80": 0.7904761904761904,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.6,
+            "gps_velocity": 0.0,
+            "recall_at_0.80": 0.9936507936507937,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.6,
+            "gps_velocity": 0.5,
+            "recall_at_0.80": 0.9936507936507937,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.6,
+            "gps_velocity": 1.5,
+            "recall_at_0.80": 0.9873015873015873,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.6,
+            "gps_velocity": 3.0,
+            "recall_at_0.80": 0.8634920634920635,
+            "windows": 315
+        }
+    ],
+    "false_positives_by_activity": [
+        {
+            "activity": "adl_jump",
+            "windows": 35,
+            "possible_fall_rate": 1.0,
+            "false_positive_rate_at_0.80": 1.0
+        },
+        {
+            "activity": "WALKING_DOWNSTAIRS",
+            "windows": 1406,
+            "possible_fall_rate": 0.9964,
+            "false_positive_rate_at_0.80": 0.40256045519203415
+        },
+        {
+            "activity": "adl_liedown",
+            "windows": 35,
+            "possible_fall_rate": 0.0286,
+            "false_positive_rate_at_0.80": 0.02857142857142857
+        },
+        {
+            "activity": "WALKING_UPSTAIRS",
+            "windows": 1544,
+            "possible_fall_rate": 0.9352,
+            "false_positive_rate_at_0.80": 0.0045336787564766836
+        },
+        {
+            "activity": "WALKING",
+            "windows": 1722,
+            "possible_fall_rate": 0.7375,
+            "false_positive_rate_at_0.80": 0.0023228803716608595
+        },
+        {
+            "activity": "LAYING",
+            "windows": 1944,
+            "possible_fall_rate": 0.0,
+            "false_positive_rate_at_0.80": 0.0
+        },
+        {
+            "activity": "SITTING",
+            "windows": 1777,
+            "possible_fall_rate": 0.0,
+            "false_positive_rate_at_0.80": 0.0
+        },
+        {
+            "activity": "STANDING",
+            "windows": 1906,
+            "possible_fall_rate": 0.0,
+            "false_positive_rate_at_0.80": 0.0
+        },
+        {
+            "activity": "adl_bendingandpickingup",
+            "windows": 35,
+            "possible_fall_rate": 0.2571,
+            "false_positive_rate_at_0.80": 0.0
+        },
+        {
+            "activity": "adl_sittingonchair",
+            "windows": 35,
+            "possible_fall_rate": 0.2571,
+            "false_positive_rate_at_0.80": 0.0
+        },
+        {
+            "activity": "adl_standingfromchair",
+            "windows": 35,
+            "possible_fall_rate": 0.2857,
+            "false_positive_rate_at_0.80": 0.0
+        },
+        {
+            "activity": "adl_walk",
+            "windows": 35,
+            "possible_fall_rate": 0.1429,
+            "false_positive_rate_at_0.80": 0.0
+        }
+    ],
+    "verdict": "DEPENDS_ON_UNMEASURED_CHANNELS",
+    "motion_feature_summary": {
+        "negative_peak_median": 10.5011,
+        "negative_possible_fall_rate": 0.39813493196307925,
+        "positive_peak_median": 29.9533
+    }
+}

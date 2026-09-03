@@ -88,10 +88,21 @@ else:
 
 # -----------------------------
 # Prediction object
+#
+# "Confidence" stays rounded to 4dp: it is the display/handoff value and
+# downstream consumers (security-module AIResult.kt, phase7 report) already
+# read it at that precision.
+#
+# "ConfidenceRaw" is the full-precision model output and is what the decision
+# engine MUST threshold on. Thresholding the rounded value promoted any raw
+# confidence in [0.79995, 0.80) to "Emergency", which the on-device Kotlin
+# path (EmergencyClassifier, raw comparison) would not do - a divergence in
+# the safety-critical decision. See phase6/test_decision_threshold.py.
 # -----------------------------
 prediction_object = {
     "Prediction": prediction,
-    "Confidence": round(confidence, 4)
+    "Confidence": round(confidence, 4),
+    "ConfidenceRaw": confidence
 }
 
 print("\nTFLite Prediction:")

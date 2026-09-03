@@ -31,6 +31,13 @@ with open(prediction_path, "r") as file:
 prediction = prediction_data["Prediction"]
 confidence = prediction_data["Confidence"]
 
+# Threshold on the full-precision model output, never on the 4dp display
+# value. Rounding first would promote a raw confidence in [0.79995, 0.80) to
+# EmergencyStatus=True, while the on-device Kotlin path (EmergencyClassifier,
+# `confidence >= 0.8` on the raw float) would return False for the same
+# packet. Falls back to "Confidence" for older prediction files.
+confidence_raw = prediction_data.get("ConfidenceRaw", confidence)
+
 
 # -----------------------------
 # Load session context, if present
@@ -47,7 +54,11 @@ if session_context_path.exists():
 # Decision Logic
 # -----------------------------
 
-if prediction == "Emergency" and confidence >= THRESHOLD:
+# Equivalent to the on-device rule in EmergencyClassifier.kt: since
+# prediction == "Emergency" is exactly confidence_raw >= 0.50, requiring both
+# reduces to confidence_raw >= 0.80. Kept in this form so the two-stage
+# classification/decision split stays explicit.
+if prediction == "Emergency" and confidence_raw >= THRESHOLD:
     emergency_status = True
 else:
     emergency_status = False

@@ -6,7 +6,8 @@ Source of truth for the packet shape (do not edit that side; this file only read
     mobile-client/app/src/main/java/com/incog/mobileclient/ghost/GhostStateService.kt (producer)
     mobile-client/app/src/main/java/com/incog/mobileclient/sensors/SensorCollector.kt
     mobile-client/app/src/main/java/com/incog/mobileclient/sensors/AudioBufferCollector.kt
-    xai-engine/CLAUDE.md (handoff spec)
+    mobile-client/CLAUDE.md ("Handoff to Lipika (Phase 3 -> Phase 4)")
+    xai-engine/CLAUDE.md (this module's side of the contract)
 
 Expected packet shape (JSON-serialized Kotlin SensorPacket):
 
@@ -65,34 +66,150 @@ AUDIO_RMS_FULL_SCALE = 32768.0
 
 
 # ============================================================
+# The packet schema
+#
+# Mirrors the Kotlin declarations field-for-field:
+#   handoff/SensorPacket.kt      SensorPacket
+#   sensors/SensorReading.kt     Vec3Reading, LocationReading
+#
+# "required" means THIS ADAPTER cannot produce a feature vector without it.
+# The other fields are part of the contract and are type-checked when
+# present, but a slimmer bridge that omits them still works.
+#
+# phase4/test_sensor_packet_contract.py parses the actual Kotlin source and
+# asserts these names and nullabilities still match, so the schema cannot
+# silently drift from Aarush's data classes.
+# ============================================================
+
+PACKET_SCHEMA = {
+    "sessionId":       {"kotlin": "String",           "required": True},
+    "timestampMs":     {"kotlin": "Long",             "required": True},
+    "latestAccel":     {"kotlin": "Vec3Reading?",     "required": False},
+    "latestGyro":      {"kotlin": "Vec3Reading?",     "required": False},
+    "latestLocation":  {"kotlin": "LocationReading?", "required": False},
+    "accelSamples":    {"kotlin": "List<Vec3Reading>", "required": True},
+    "gyroSamples":     {"kotlin": "List<Vec3Reading>", "required": False},
+    "audioRmsEnergy":  {"kotlin": "Double",           "required": True},
+    "audioBufferedMs": {"kotlin": "Long",             "required": False}
+}
+
+VEC3_SCHEMA = {
+    "timestampMs": "Long",
+    "x": "Float",
+    "y": "Float",
+    "z": "Float"
+}
+
+LOCATION_SCHEMA = {
+    "timestampMs": "Long",
+    "latitude": "Double",
+    "longitude": "Double",
+    "speedMps": "Float",
+    "accuracyM": "Float"
+}
+
+# Fields the feature computation actually reads out of a sample.
+REQUIRED_SAMPLE_AXES = ("x", "y", "z")
+
+
+# ============================================================
 # Validation
 # ============================================================
 
+def _is_number(value) -> bool:
+    # bool is a subclass of int in Python; a JSON true where a number belongs
+    # is a contract violation, not a 1.
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def validate_packet(packet: dict) -> None:
-    """Raise ValueError if the packet is missing fields this adapter needs."""
+    """Raise ValueError if the packet cannot produce a feature vector.
+
+    Error messages name the offending field and say what was expected, so a
+    malformed real capture is diagnosable without opening this file.
+    """
 
     if not isinstance(packet, dict):
-        raise ValueError("SensorPacket must be a JSON object.")
+        raise ValueError(
+            f"SensorPacket must be a JSON object, got {type(packet).__name__}."
+        )
 
-    required_top_level = ["sessionId", "timestampMs", "accelSamples", "audioRmsEnergy"]
-
-    missing = [field for field in required_top_level if field not in packet]
+    missing = [
+        field
+        for field, spec in PACKET_SCHEMA.items()
+        if spec["required"] and field not in packet
+    ]
 
     if missing:
-        raise ValueError(f"SensorPacket missing required fields: {missing}")
+        raise ValueError(
+            f"SensorPacket missing required fields: {missing}. "
+            f"Expected the JSON form of Kotlin SensorPacket "
+            f"(fields: {sorted(PACKET_SCHEMA)})."
+        )
+
+    if not isinstance(packet["sessionId"], str) or not packet["sessionId"]:
+        raise ValueError(
+            f"SensorPacket.sessionId must be a non-empty string, got "
+            f"{packet['sessionId']!r}."
+        )
+
+    if not _is_number(packet["timestampMs"]):
+        raise ValueError(
+            f"SensorPacket.timestampMs must be a number (Kotlin Long), got "
+            f"{packet['timestampMs']!r}."
+        )
+
+    if not _is_number(packet["audioRmsEnergy"]):
+        raise ValueError(
+            f"SensorPacket.audioRmsEnergy must be a number (Kotlin Double, "
+            f"RMS of PCM16 on a 0..32768 scale), got "
+            f"{packet['audioRmsEnergy']!r}."
+        )
 
     accel_samples = packet["accelSamples"]
 
     if not isinstance(accel_samples, list) or len(accel_samples) == 0:
         raise ValueError(
             "SensorPacket.accelSamples is empty - no accelerometer history to "
-            "compute PeakAcceleration/MotionVariance from yet."
+            "compute PeakAcceleration/MotionVariance from yet. On-device this "
+            "happens only in the first moments of a session."
         )
 
-    for sample in accel_samples:
-        for axis in ("x", "y", "z"):
+    for index, sample in enumerate(accel_samples):
+        if not isinstance(sample, dict):
+            raise ValueError(
+                f"accelSamples[{index}] must be an object with x/y/z, got "
+                f"{type(sample).__name__}."
+            )
+
+        for axis in REQUIRED_SAMPLE_AXES:
             if axis not in sample:
-                raise ValueError(f"accelSamples entry missing '{axis}': {sample}")
+                raise ValueError(
+                    f"accelSamples[{index}] missing '{axis}': {sample}"
+                )
+
+            if not _is_number(sample[axis]):
+                raise ValueError(
+                    f"accelSamples[{index}].{axis} must be a number "
+                    f"(Kotlin Float, m/s^2), got {sample[axis]!r}."
+                )
+
+    location = packet.get("latestLocation")
+
+    if location is not None and not isinstance(location, dict):
+        raise ValueError(
+            f"SensorPacket.latestLocation must be an object or null, got "
+            f"{type(location).__name__}."
+        )
+
+    if isinstance(location, dict):
+        speed = location.get("speedMps")
+
+        if speed is not None and not _is_number(speed):
+            raise ValueError(
+                f"latestLocation.speedMps must be a number (Kotlin Float, "
+                f"m/s) or absent, got {speed!r}."
+            )
 
 
 # ============================================================
@@ -117,10 +234,22 @@ def compute_feature_vector_from_packet(packet: dict) -> dict:
     peak_acceleration, motion_variance = peak_and_variance(magnitudes)
 
     audio_rms_energy = float(packet["audioRmsEnergy"])
-    audio_energy = min(audio_rms_energy / AUDIO_RMS_FULL_SCALE, 1.0)
 
+    # Clamped at BOTH ends. RMS is non-negative by construction on the device
+    # (AudioBufferCollector.computeRms), so the lower clamp never fires for a
+    # well-formed packet - it is here so a malformed/negative value from a JSON
+    # bridge cannot feed an out-of-contract feature into the model.
+    audio_energy = min(max(audio_rms_energy / AUDIO_RMS_FULL_SCALE, 0.0), 1.0)
+
+    # latestLocation is null until the first GPS fix. Kotlin's LocationReading
+    # always carries a non-null speedMps, but a JSON bridge can drop the field;
+    # treat that the same as "no fix yet" rather than raising KeyError.
     latest_location = packet.get("latestLocation")
-    gps_velocity = float(latest_location["speedMps"]) if latest_location else 0.0
+
+    if latest_location and latest_location.get("speedMps") is not None:
+        gps_velocity = float(latest_location["speedMps"])
+    else:
+        gps_velocity = 0.0
 
     return {
         "PeakAcceleration": round(peak_acceleration, 4),
@@ -128,6 +257,21 @@ def compute_feature_vector_from_packet(packet: dict) -> dict:
         "AudioEnergy": round(audio_energy, 4),
         "GPSVelocity": round(gps_velocity, 4),
         "PossibleFall": bool(possible_fall(peak_acceleration))
+    }
+
+
+def session_context_from_packet(packet: dict) -> dict:
+    """Session identity for downstream phases.
+
+    Exposed so no other module has to reach into raw packet fields - this
+    adapter stays the single place that knows the Kotlin field names.
+    """
+
+    validate_packet(packet)
+
+    return {
+        "SessionID": packet["sessionId"],
+        "TimestampMs": int(packet["timestampMs"])
     }
 
 
@@ -143,10 +287,54 @@ def extract_from_sensor_packet(packet: dict) -> dict:
         }
     """
 
-    validate_packet(packet)
+    context = session_context_from_packet(packet)
 
     return {
-        "SessionID": packet["sessionId"],
-        "TimestampMs": int(packet["timestampMs"]),
+        "SessionID": context["SessionID"],
+        "TimestampMs": context["TimestampMs"],
         "Features": compute_feature_vector_from_packet(packet)
     }
+
+
+# ============================================================
+# Loading real captures
+#
+# One capture file is either a single SensorPacket object or an array of
+# them (GhostStateService builds one every 2 s, so a session export is
+# naturally a list). Both are accepted.
+# ============================================================
+
+def load_packets(path) -> list:
+    """Read a capture file and return its packets as a list of dicts.
+
+    Raises ValueError with the file name on malformed JSON, so a bad capture
+    in a batch is identifiable.
+    """
+
+    import json
+    from pathlib import Path
+
+    path = Path(path)
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{path.name} is not valid JSON: {error}") from error
+
+    packets = payload if isinstance(payload, list) else [payload]
+
+    if not packets:
+        raise ValueError(f"{path.name} contains no SensorPackets.")
+
+    return packets
+
+
+def load_packet(path) -> dict:
+    """Read a capture file expected to hold exactly one packet.
+
+    A multi-packet file returns its FIRST packet, because the single-shot
+    pipeline scores one packet at a time - same as the phone, which scores
+    each 2 s snapshot on its own.
+    """
+
+    return load_packets(path)[0]

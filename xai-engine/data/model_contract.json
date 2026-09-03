@@ -1,0 +1,36 @@
+{
+    "description": "Single source of truth for the constants shared by the Python training/XAI side and the Kotlin on-device side.",
+    "featureOrder": [
+        "PeakAcceleration",
+        "MotionVariance",
+        "AudioEnergy",
+        "GPSVelocity",
+        "PossibleFall"
+    ],
+    "kotlinPropertyNames": {
+        "PeakAcceleration": "peakAcceleration",
+        "MotionVariance": "motionVariance",
+        "AudioEnergy": "audioEnergy",
+        "GPSVelocity": "gpsVelocity",
+        "PossibleFall": "possibleFall"
+    },
+    "fallAccelerationThreshold": 15,
+    "audioRmsFullScale": 32768.0,
+    "classificationThreshold": 0.5,
+    "decisionThreshold": 0.8,
+    "modelInputShape": [
+        1,
+        5
+    ],
+    "modelOutputShape": [
+        1,
+        1
+    ],
+    "modelDtype": "float32",
+    "normalization": "baked into the .tflite as a Keras Normalization layer - feed RAW feature values, do not pre-normalize",
+    "possibleFallEncoding": "1.0 / 0.0",
+    "possibleFallUsesUnroundedPeak": true,
+    "modelFile": "data/emergency_model.tflite",
+    "modelSha256": "9a8d50936e834f47778f7e47f7494fcc25201400eac4f43fc66abe840acbe8da",
+    "modelMustMatchAsset": "mobile-client/app/src/main/assets/emergency_model.tflite"
+}
