@@ -21,7 +21,7 @@ accurate.
 |---|---|---|
 | 1 | Rotate the DB URL, API key and encryption key. Early commits in this repo carried a `.env`; deleting the file did not remove it from history, so all three must be treated as compromised. | Chirag |
 | 2 | `SecurityOrchestrator.kt` still calls `CryptoManager.generate256BitKey()`, minting a fresh random key per emergency that is shared with nobody. It must load the pre-shared key instead, or evidence cannot decrypt end-to-end. | Gagan |
-| 3 | Run `migrations/001_evidence_encrypted_at_rest.sql` against the live database. `create_all()` does not alter existing tables, so evidence inserts fail without it. | Chirag |
+| 3 | If the live database already has an `evidence_vault` table from the old schema, run `migrations/001_evidence_encrypted_at_rest.sql` — `create_all()` does not alter existing tables, so evidence inserts fail without it. The script is idempotent and safe to run even if the table does not exist. | Chirag |
 
 Clear those three and the backend integrates.
 
