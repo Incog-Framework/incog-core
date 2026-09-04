@@ -114,8 +114,11 @@ Base = declarative_base()
 # --------------------------------------------------------------------------
 # Alert dispatch
 # --------------------------------------------------------------------------
+WHATSAPP_PREFIX = "whatsapp:"
+
+
 class AlertDispatcher:
-    """Fans an emergency out to SMS and/or a webhook."""
+    """Fans an emergency out over Twilio (SMS or WhatsApp) and/or a webhook."""
 
     def __init__(self):
         self.enable_sms = os.getenv("ENABLE_SMS_DISPATCH", "true").lower() == "true"
@@ -123,6 +126,18 @@ class AlertDispatcher:
             os.getenv("ENABLE_WEBHOOK_DISPATCH", "false").lower() == "true"
         )
         self.webhook_url = os.getenv("DISPATCH_WEBHOOK_URL")
+
+        # "sms" or "whatsapp". Twilio trial accounts reject free-form SMS bodies
+        # (error 572006 - trial SMS must use a predefined template), but the
+        # WhatsApp sandbox accepts arbitrary text, so it carries the coordinates
+        # and Maps link that make the alert worth sending.
+        self.channel = os.getenv("TWILIO_CHANNEL", "sms").strip().lower()
+        if self.channel not in ("sms", "whatsapp"):
+            logger.warning(
+                f"TWILIO_CHANNEL={self.channel!r} is not 'sms' or 'whatsapp'; "
+                "falling back to sms"
+            )
+            self.channel = "sms"
 
         self.twilio_client = None
         self.twilio_phone = None
@@ -133,12 +148,14 @@ class AlertDispatcher:
             self.twilio_phone = os.getenv("TWILIO_PHONE_NUMBER")
 
             if not all([account_sid, auth_token, self.twilio_phone]):
-                logger.warning("SMS dispatch enabled but Twilio credentials are missing")
+                logger.warning(
+                    "Twilio dispatch enabled but credentials are missing"
+                )
                 self.enable_sms = False
             else:
                 try:
                     self.twilio_client = TwilioClient(account_sid, auth_token)
-                    logger.info("Twilio SMS dispatch initialized")
+                    logger.info(f"Twilio dispatch initialized (channel={self.channel})")
                 except Exception as exc:
                     logger.error(f"Failed to initialize Twilio: {exc}")
                     self.enable_sms = False
@@ -147,17 +164,32 @@ class AlertDispatcher:
             c.strip() for c in os.getenv("EMERGENCY_CONTACTS", "").split(",") if c.strip()
         ]
 
-    def _send_sms(self, phone_number: str, message: str) -> bool:
+    def _address(self, number: str) -> str:
+        """
+        Render a phone number as Twilio expects for the active channel.
+
+        WhatsApp addresses are prefixed 'whatsapp:'; SMS addresses must not be.
+        Tolerates a number that already carries the prefix either way, so a
+        stray prefix in EMERGENCY_CONTACTS cannot silently break delivery.
+        """
+        bare = number.strip()
+        if bare.startswith(WHATSAPP_PREFIX):
+            bare = bare[len(WHATSAPP_PREFIX):].strip()
+        return f"{WHATSAPP_PREFIX}{bare}" if self.channel == "whatsapp" else bare
+
+    def _send_message(self, phone_number: str, message: str) -> bool:
         if not self.enable_sms or not self.twilio_client:
             return False
         try:
             self.twilio_client.messages.create(
-                body=message, from_=self.twilio_phone, to=phone_number
+                body=message,
+                from_=self._address(self.twilio_phone),
+                to=self._address(phone_number),
             )
-            logger.info(f"Alert SMS sent to {phone_number}")
+            logger.info(f"Alert {self.channel} sent to {phone_number}")
             return True
         except Exception as exc:
-            logger.error(f"Alert SMS to {phone_number} failed: {exc}")
+            logger.error(f"Alert {self.channel} to {phone_number} failed: {exc}")
             return False
 
     def _send_webhook(self, payload: dict) -> bool:
@@ -216,7 +248,7 @@ class AlertDispatcher:
         }
 
         for contact in self.emergency_contacts:
-            self._send_sms(contact, alert_message)
+            self._send_message(contact, alert_message)
 
         if self.enable_webhook:
             self._send_webhook(webhook_payload)
@@ -529,6 +561,7 @@ def dispatch_status(api_key: str = Depends(verify_api_key)):
     """Report dispatcher configuration without sending anything."""
     return {
         "sms_enabled": dispatcher.enable_sms,
+        "channel": dispatcher.channel,
         "webhook_enabled": dispatcher.enable_webhook,
         "twilio_configured": dispatcher.twilio_client is not None,
         "emergency_contacts": len(dispatcher.emergency_contacts),

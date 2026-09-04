@@ -207,11 +207,37 @@ still needs agreeing between us.
 | `DATABASE_URL` | yes | PostgreSQL with PostGIS |
 | `INCOG_API_KEY` | yes | Sent as `X-Incog-Key`. Falls back to `AGENT_SECRET_KEY` (deprecated) |
 | `EVIDENCE_AES_KEY` | no | Base64 of 32 raw bytes. Unset ⇒ evidence refused with 503, SOS unaffected |
-| `ENABLE_SMS_DISPATCH` | no | Default `true` |
-| `TWILIO_ACCOUNT_SID` | if SMS | |
-| `TWILIO_AUTH_TOKEN` | if SMS | |
-| `TWILIO_PHONE_NUMBER` | if SMS | |
-| `EMERGENCY_CONTACTS` | if SMS | Comma-separated, with country code |
+| `ENABLE_SMS_DISPATCH` | no | Default `true`. Covers both Twilio channels |
+| `TWILIO_CHANNEL` | no | `sms` (default) or `whatsapp` — see below |
+| `TWILIO_ACCOUNT_SID` | if Twilio | |
+| `TWILIO_AUTH_TOKEN` | if Twilio | |
+| `TWILIO_PHONE_NUMBER` | if Twilio | Sender. For the WhatsApp sandbox this is Twilio's shared number |
+| `EMERGENCY_CONTACTS` | if Twilio | Comma-separated, with country code. No `whatsapp:` prefix needed |
+
+### SMS vs WhatsApp
+
+Twilio **trial accounts reject free-form SMS bodies** with error `572006`
+("trial accounts can only use predefined SMS templates"). Those templates are
+verification-code shaped, with nowhere to put coordinates or a Maps link — so
+on a trial account SMS cannot carry a useful emergency alert.
+
+The **WhatsApp sandbox** accepts arbitrary text on a trial account, so the alert
+arrives intact. Set:
+
+```
+TWILIO_CHANNEL      = whatsapp
+TWILIO_PHONE_NUMBER = +14155238886      # Twilio's shared sandbox sender
+```
+
+Each recipient must first join the sandbox once, by sending the join code from
+Twilio Console → Messaging → Try it out → WhatsApp. The session then stays open
+for 24 hours; after that they must message it again before alerts resume.
+
+The `whatsapp:` prefix Twilio requires on both addresses is added by the code —
+keep `EMERGENCY_CONTACTS` as plain numbers.
+
+Switching back to SMS is `TWILIO_CHANNEL=sms` plus a real (non-trial) Twilio
+account, with no code change.
 | `ENABLE_WEBHOOK_DISPATCH` | no | Default `false` |
 | `DISPATCH_WEBHOOK_URL` | if webhook | |
 | `MAP_DEFAULT_LAT` / `MAP_DEFAULT_LON` | no | Dashboard fallback centre, defaults to BMSCE |
