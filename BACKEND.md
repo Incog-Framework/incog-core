@@ -64,7 +64,8 @@ Treat the right-hand column as the risk surface for integration testing.
 | `evidence_crypto.py` | AES-256-GCM decode/verify. No DB or web imports, so it is unit-testable standalone |
 | `schemas.py` | Pydantic request/response models |
 | `tracker.py` | Local simulator standing in for the Android client (dev only) |
-| `migrations/` | Hand-run SQL; `create_all()` does not alter existing tables |
+| `migrations/` | Hand-run SQL, plus `run_migration.py` to apply it without psql |
+| `tools/` | Operational scripts, e.g. `purge_device.py` to clear a device's test data |
 | `tests/` | pytest suite, no database required |
 
 ---

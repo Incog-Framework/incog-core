@@ -571,7 +571,10 @@ def dispatch_status(api_key: str = Depends(verify_api_key)):
         "webhook_enabled": dispatcher.enable_webhook,
         "twilio_configured": dispatcher.twilio_client is not None,
         "emergency_contacts": len(dispatcher.emergency_contacts),
-        "webhook_url": dispatcher.webhook_url if dispatcher.enable_webhook else None,
+        # Deliberately a boolean, not the URL. A Discord/Slack webhook URL
+        # embeds its own auth token, so returning it would let anyone holding
+        # the API key post into that channel.
+        "webhook_configured": bool(dispatcher.webhook_url),
         "evidence_decryption_enabled": EVIDENCE_KEY is not None,
     }
 

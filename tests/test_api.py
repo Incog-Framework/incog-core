@@ -115,6 +115,28 @@ def test_dispatch_status_requires_a_key(client):
     assert client.get("/api/v1/dispatch/status").status_code == 403
 
 
+def test_dispatch_status_does_not_leak_the_webhook_url(client, monkeypatch):
+    """
+    A Discord/Slack webhook URL embeds its own auth token. Returning it would
+    let anyone holding the API key post into that channel, so status reports
+    only whether one is configured.
+    """
+    secret = "https://discord.com/api/webhooks/123456789/SUPERSECRETTOKENVALUE"
+    monkeypatch.setattr(main.dispatcher, "webhook_url", secret)
+    monkeypatch.setattr(main.dispatcher, "enable_webhook", True)
+
+    response = client.get(
+        "/api/v1/dispatch/status", headers={"X-Incog-Key": API_KEY}
+    )
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["webhook_configured"] is True
+    assert "webhook_url" not in body
+    assert secret not in response.text
+    assert "SUPERSECRETTOKENVALUE" not in response.text
+
+
 # --------------------------------------------------------------------------
 # Validation
 # --------------------------------------------------------------------------
