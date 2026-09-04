@@ -238,6 +238,12 @@ class AlertDispatcher:
         )
 
         webhook_payload = {
+            # Discord requires "content" and Slack requires "text", and each
+            # ignores fields it does not recognise. Sending both means a plain
+            # Discord or Slack webhook URL works with no extra configuration,
+            # while structured consumers still get the fields below.
+            "content": alert_message,
+            "text": alert_message,
             "alert_type": alert_type,
             "device_id": device_id,
             "timestamp": timestamp,
