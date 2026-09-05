@@ -14,9 +14,18 @@ import java.net.URL
  *
  * Backend URL + agent key come from BuildConfig (injected from local.properties/env — team
  * DECISION 1). Blocking network call — invoke off the main thread.
+ *
+ * DO NOT RETRY on a 400 or 503 response: per the backend contract those mean the evidence was
+ * rejected but the SOS signal is already stored and contacts already alerted — retrying files a
+ * duplicate and re-alerts everyone. This method makes a single attempt by design; only the caller
+ * may retry, and only on a network failure or a non-503 5xx.
+ *
+ * Timeout is 60s: the backend is on a free tier that cold-starts, so the first request after idle
+ * can take ~30s+ to wake. (Warming it by opening /map first avoids this.)
  */
 object EvidenceUploader {
     private const val TAG = "EvidenceUploader"
+    private const val TIMEOUT_MS = 60_000
 
     fun upload(
         deviceId: String,
@@ -38,10 +47,10 @@ object EvidenceUploader {
             conn = (URL(BuildConfig.BACKEND_SOS_URL).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 doOutput = true
-                connectTimeout = 10_000
-                readTimeout = 15_000
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
                 setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("X-Agent-Key", BuildConfig.AGENT_KEY)
+                setRequestProperty("X-Incog-Key", BuildConfig.AGENT_KEY)
             }
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val code = conn.responseCode
