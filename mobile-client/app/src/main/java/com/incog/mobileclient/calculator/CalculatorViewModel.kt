@@ -1,6 +1,7 @@
 package com.incog.mobileclient.calculator
 
 import androidx.lifecycle.ViewModel
+import com.incog.mobileclient.config.SecretCodes
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -13,28 +14,21 @@ import java.math.RoundingMode
 
 private const val MAX_DIGITS = 12
 
-/**
- * Concealed unlock code. Typing this on the calculator then pressing "=" opens the system
- * Accessibility settings so the owner can enable the Sentinel Engine (an app cannot enable its
- * own accessibility service). Normally typing a lone number and pressing "=" does nothing, so
- * this is invisible during ordinary use. CHANGE THIS to a value only the owner knows.
- */
-private const val SECRET_UNLOCK_CODE = "271828"
-
-/**
- * Concealed stand-down code. Typing this then "=" stops an active Ghost State session (e.g. to
- * cancel a false trigger) and returns to Phase 0. Like the unlock code, a lone number + "=" is
- * normally a no-op, so this stays invisible. CHANGE THIS to a value only the owner knows.
- */
-private const val STAND_DOWN_CODE = "314159"
-
 /** One-shot UI events the calculator screen must act on (needs an Activity context). */
 sealed interface CalculatorEvent {
     data object OpenAccessibilitySettings : CalculatorEvent
     data object StopGhostState : CalculatorEvent
+    data object OpenSettings : CalculatorEvent
 }
 
-class CalculatorViewModel : ViewModel() {
+/**
+ * The concealed codes are injected (from [com.incog.mobileclient.config.IncogConfig] in the app,
+ * defaults in tests). Typing a lone code then "=" fires the matching event instead of computing —
+ * a lone number + "=" is a no-op normally, so these stay invisible during ordinary use.
+ */
+class CalculatorViewModel(
+    private val codes: SecretCodes = SecretCodes()
+) : ViewModel() {
 
     private val _state = MutableStateFlow(CalculatorState())
     val state: StateFlow<CalculatorState> = _state.asStateFlow()
@@ -140,17 +134,19 @@ class CalculatorViewModel : ViewModel() {
 
     private fun calculate() {
         val current = _state.value
-        // Concealed unlock: a lone secret code + "=" opens Accessibility settings instead of
-        // computing (a lone number + "=" is a no-op normally, so this stays invisible).
-        if (current.operation == null && current.number1 == SECRET_UNLOCK_CODE) {
-            _events.tryEmit(CalculatorEvent.OpenAccessibilitySettings)
-            _state.value = CalculatorState()
-            return
-        }
-        if (current.operation == null && current.number1 == STAND_DOWN_CODE) {
-            _events.tryEmit(CalculatorEvent.StopGhostState)
-            _state.value = CalculatorState()
-            return
+        // Concealed codes: a lone code + "=" fires an event instead of computing.
+        if (current.operation == null) {
+            val event = when (current.number1) {
+                codes.unlock -> CalculatorEvent.OpenAccessibilitySettings
+                codes.standDown -> CalculatorEvent.StopGhostState
+                codes.settings -> CalculatorEvent.OpenSettings
+                else -> null
+            }
+            if (event != null) {
+                _events.tryEmit(event)
+                _state.value = CalculatorState()
+                return
+            }
         }
         _state.update { state ->
             val result = computeResult(state) ?: return@update state

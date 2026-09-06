@@ -30,6 +30,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.incog.mobileclient.config.SecretCodes
 
 // Fixed calculator palette (kept theme-independent so the decoy always looks like a normal,
 // intentional calculator regardless of the device's light/dark setting).
@@ -90,12 +93,18 @@ private val buttonRows: List<List<CalcButton>> = listOf(
 @Composable
 fun CalculatorScreen(
     modifier: Modifier = Modifier,
-    viewModel: CalculatorViewModel = viewModel()
+    codes: SecretCodes = SecretCodes(),
+    onOpenSettings: () -> Unit = {},
+    // Keyed by the codes so reconfiguring them in setup yields a ViewModel that checks the new ones.
+    viewModel: CalculatorViewModel = viewModel(
+        key = "calculator-${codes.hashCode()}",
+        factory = viewModelFactory { initializer { CalculatorViewModel(codes) } }
+    )
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 CalculatorEvent.OpenAccessibilitySettings -> {
@@ -106,6 +115,9 @@ fun CalculatorScreen(
                 }
                 CalculatorEvent.StopGhostState -> {
                     GhostStateService.stop(context)
+                }
+                CalculatorEvent.OpenSettings -> {
+                    onOpenSettings()
                 }
             }
         }
