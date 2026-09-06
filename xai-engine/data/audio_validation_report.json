@@ -1,8 +1,11 @@
 {
-    "generated_at": "2026-09-06T12:39:58.136285+00:00",
+    "generated_at": "2026-09-06T18:31:07.445515+00:00",
     "contract": {
-        "formula": "clamp(audioRmsEnergy / 32768, 0, 1)",
+        "formula": "clamp((20*log10(max(rms,1)/audioRmsFullScale) - floorDb) / (ceilDb - floorDb), 0, 1)",
         "full_scale": 32768.0,
+        "floor_db": -32.0,
+        "ceil_db": -20.0,
+        "revised": "2026-09-06, from clamp(rms/32768, 0, 1) - see MODEL_CARD.md",
         "sample_rate_hz": 16000,
         "encoding": "PCM16 mono"
     },
@@ -24,24 +27,31 @@
                 "passed": true
             },
             {
-                "signal": "full_scale_sine_440hz",
-                "expected_audio_energy": 0.707085,
-                "actual_audio_energy": 0.707085,
-                "rms": 23169.77,
-                "passed": true
-            },
-            {
-                "signal": "half_scale_sine_440hz",
-                "expected_audio_energy": 0.353543,
-                "actual_audio_energy": 0.353544,
-                "rms": 11584.94,
-                "passed": true
-            },
-            {
                 "signal": "above_full_scale_clamps",
                 "expected_audio_energy": 1.0,
                 "actual_audio_energy": 1.0,
                 "rms": 98304.0,
+                "passed": true
+            },
+            {
+                "signal": "at_floor_db",
+                "expected_audio_energy": 0.0,
+                "actual_audio_energy": 0.0,
+                "rms": 823.09,
+                "passed": true
+            },
+            {
+                "signal": "at_ceil_db",
+                "expected_audio_energy": 1.0,
+                "actual_audio_energy": 1.0,
+                "rms": 3276.8,
+                "passed": true
+            },
+            {
+                "signal": "midpoint_of_db_range",
+                "expected_audio_energy": 0.5,
+                "actual_audio_energy": 0.5,
+                "rms": 1642.29,
                 "passed": true
             }
         ],
@@ -62,15 +72,22 @@
             },
             {
                 "audioRmsEnergy": 500.0,
-                "expected_audio_energy": 0.0153,
-                "actual_audio_energy": 0.0153,
+                "expected_audio_energy": 0.0,
+                "actual_audio_energy": 0.0,
+                "in_unit_range": true,
+                "passed": true
+            },
+            {
+                "audioRmsEnergy": 1642.3,
+                "expected_audio_energy": 0.5,
+                "actual_audio_energy": 0.5,
                 "in_unit_range": true,
                 "passed": true
             },
             {
                 "audioRmsEnergy": 16384.0,
-                "expected_audio_energy": 0.5,
-                "actual_audio_energy": 0.5,
+                "expected_audio_energy": 1.0,
+                "actual_audio_energy": 1.0,
                 "in_unit_range": true,
                 "passed": true
             },
@@ -110,24 +127,24 @@
                 "chunks": 33866,
                 "min": 0.0,
                 "p05": 0.0,
-                "median": 0.0013,
-                "p95": 0.085,
-                "max": 0.6161,
-                "mean": 0.0164
+                "median": 0.0,
+                "p95": 0.8823,
+                "max": 1.0,
+                "mean": 0.095
             },
             "non_distress": {
                 "label": "non-distress",
                 "chunks": 48666,
                 "min": 0.0,
                 "p05": 0.0,
-                "median": 0.0004,
-                "p95": 0.0323,
-                "max": 0.3837,
-                "mean": 0.0066
+                "median": 0.0,
+                "p95": 0.182,
+                "max": 1.0,
+                "mean": 0.0275
             },
-            "separated": true
+            "separated": false
         }
     },
     "device_validation_outstanding": true,
-    "how_to_close": "Log packet.audioRmsEnergy from GhostStateService during a real Ghost State session - quiet room, normal conversation, shouting, phone in a pocket - and compare the resulting AudioEnergy values against the 0.04-0.91 range the training data assumes."
+    "how_to_close": "Log packet.audioRmsEnergy from GhostStateService during a real Ghost State session - quiet room, normal conversation, shouting, phone in a pocket - and pass the resulting .wav (or the raw audioRmsEnergy values) through this script's --wav option to see where they land against AUDIO_FLOOR_DB/AUDIO_CEIL_DB."
 }

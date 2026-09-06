@@ -1,7 +1,7 @@
 # Real-data evaluation of the deployed model
 
-> **UPDATE (2026-09-06): retrained a second time to fix a safety-critical GPS
-> defect.** Everything below this banner describes the ORIGINAL model (30
+> **UPDATE (2026-09-06): retrained twice more — a GPS fix, then an AudioEnergy
+> rescale.** Everything below this banner describes the ORIGINAL model (30
 > synthetic rows) and is kept for the before/after comparison. Full current
 > numbers and method: **MODEL_CARD.md**.
 >
@@ -26,12 +26,17 @@
 > detect fleeing — it only stops the model from actively working against
 > that scenario; see MODEL_CARD.md Limitations for why.
 >
-> The RAVDESS audio validation also closed Level 2 (see
-> `data/audio_validation_report.json`): real distress speech reads
-> `AudioEnergy` median 0.0013, p95 0.085 - far below the 0.55-0.91 the old
-> synthetic data assumed. Aarush's call (2026-09-06): ship the current model
-> with audio near-dead, redefine the scale as a coordinated fast-follow so
-> Python and Kotlin change together.
+> **2026-09-06, AudioEnergy rescale:** the RAVDESS audio validation closed
+> Level 2 and found the old linear `audioRmsEnergy / 32768` scale dead - real
+> distress speech read median 0.0013, p95 0.085, far below the 0.55-0.91 old
+> synthetic data assumed. Aarush's initial call was to defer the rescale; he
+> then asked for it directly. `sensor_packet_adapter.py` now applies a dB
+> scale - `AUDIO_FLOOR_DB=-32.0`, `AUDIO_CEIL_DB=-20.0`, fitted so RAVDESS
+> distress p95 -> 0.88 and non-distress p95 -> 0.18, matching his target.
+> **This is a lockstep change Kotlin has not mirrored yet** - vendoring this
+> retrained model without the matching `FeatureExtractor.kt` change creates
+> WORSE train/serve skew on AudioEnergy than before the rescale, not a
+> no-op. Full derivation and the retrained numbers: MODEL_CARD.md.
 
 **Reproduce (the OLD model's numbers, for comparison):**
 ```bash

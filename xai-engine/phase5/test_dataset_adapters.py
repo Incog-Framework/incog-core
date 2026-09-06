@@ -301,8 +301,13 @@ def test_fusion_pairs_real_motion_with_ravdess_audio_and_flags_it_honestly():
     assert provenance["is_synthetic"] is False
     assert "fusion_method" in provenance
 
-    # AudioEnergy must actually separate by label, or the fusion did nothing
-    by_label = frame.groupby(TARGET)["AudioEnergy"].median()
+    # AudioEnergy must actually separate by label, or the fusion did nothing.
+    # Under the dB scale (revised 2026-09-06) the median is 0.0 for BOTH
+    # classes - most 64ms chunks of speech are pauses, not vocalisation, so
+    # median is degenerate here. The real separation lives in the upper
+    # tail (RAVDESS distress p95 ~0.88 vs non-distress p95 ~0.18), which
+    # mean picks up even though median cannot.
+    by_label = frame.groupby(TARGET)["AudioEnergy"].mean()
     assert by_label[1] > by_label[0], (
         "Emergency rows should skew toward RAVDESS distress audio"
     )

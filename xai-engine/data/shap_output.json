@@ -1,11 +1,11 @@
 {
     "Prediction": "Normal",
-    "Confidence": 0.014118,
+    "Confidence": 0.001517,
     "SHAP": {
-        "PeakAcceleration": 0.284474,
-        "MotionVariance": -0.199545,
-        "AudioEnergy": 0.003026,
-        "GPSVelocity": -0.04655,
-        "PossibleFall": -0.033733
+        "PeakAcceleration": 0.339792,
+        "MotionVariance": -0.343199,
+        "AudioEnergy": 0.000724,
+        "GPSVelocity": -0.002286,
+        "PossibleFall": -0.001985
     }
 }

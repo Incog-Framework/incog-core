@@ -1,5 +1,5 @@
 {
-    "Timestamp": "2026-09-06T18:04:22.948389",
+    "Timestamp": "2026-09-06T23:57:51.478036",
     "TotalTests": 6,
     "Passed": 3,
     "Failed": 3,
@@ -10,7 +10,7 @@
             "Name": "Normal condition",
             "Expected": "Normal",
             "Predicted": "Normal",
-            "Confidence": 0.0003,
+            "Confidence": 0.0002,
             "Status": "PASS"
         },
         {
@@ -18,7 +18,7 @@
             "Name": "Normal low-motion condition",
             "Expected": "Normal",
             "Predicted": "Normal",
-            "Confidence": 0.0001,
+            "Confidence": 0.0058,
             "Status": "PASS"
         },
         {
@@ -34,7 +34,7 @@
             "Name": "High acceleration emergency",
             "Expected": "Emergency",
             "Predicted": "Normal",
-            "Confidence": 0.0165,
+            "Confidence": 0.002,
             "Status": "FAIL"
         },
         {
@@ -42,7 +42,7 @@
             "Name": "Severe emergency condition",
             "Expected": "Emergency",
             "Predicted": "Normal",
-            "Confidence": 0.0465,
+            "Confidence": 0.0001,
             "Status": "FAIL"
         },
         {
@@ -50,7 +50,7 @@
             "Name": "Normal movement with GPS velocity",
             "Expected": "Normal",
             "Predicted": "Normal",
-            "Confidence": 0.0001,
+            "Confidence": 0.0425,
             "Status": "PASS"
         }
     ]

@@ -50,7 +50,7 @@ Order is fixed and load-bearing — the model takes a flat `[1,5]` tensor:
 |---|---|---|
 | `PeakAcceleration` | `max(‖(x,y,z)‖)` over `accelSamples` | m/s², gravity included |
 | `MotionVariance` | **sample** variance, `ddof=1`, of that magnitude series | `0.0` when < 2 samples |
-| `AudioEnergy` | `clamp(audioRmsEnergy / 32768, 0, 1)` | see the audio caveat below |
+| `AudioEnergy` | `clamp((20·log10(max(rms,1)/32768) − AUDIO_FLOOR_DB) / (AUDIO_CEIL_DB − AUDIO_FLOOR_DB), 0, 1)` | dB scale, revised 2026-09-06 — see below |
 | `GPSVelocity` | `latestLocation.speedMps`, else `0.0` | packet carries only the latest fix |
 | `PossibleFall` | `PeakAcceleration > 15` | on the **unrounded** peak; `>`, not `>=` |
 
@@ -165,33 +165,61 @@ ran. They stay server-side — they are far too slow for the phone.
 
 ## Open items
 
-> **2026-09-06: retrained again to fix a safety-critical GPS defect Aarush
-> caught.** `load_fusion()`'s GPS assignment now samples `GPSVelocity`
-> uniformly (0-3 m/s) independent of Activity and of the Emergency label,
-> instead of the 2026-09-05 version's activity-keyed heuristic that put every
-> fall at GPS=0. Full method, numbers and honesty caveats: **MODEL_CARD.md**.
-> The two items below are updated to match; `REAL_DATA_FINDINGS.md` keeps
-> both older write-ups for the before/after comparison.
+> **2026-09-06: retrained twice more.** First to fix a safety-critical GPS
+> defect Aarush caught - `load_fusion()`'s GPS assignment now samples
+> `GPSVelocity` uniformly (0-3 m/s) independent of Activity and of the
+> Emergency label, instead of the 2026-09-05 version's activity-keyed
+> heuristic that put every fall at GPS=0. Second to move AudioEnergy from a
+> dead linear scale to a dB scale fitted against real RAVDESS speech, also
+> per Aarush's request - see the AudioEnergy item below; this is a lockstep
+> change and Kotlin has not mirrored it yet. Full method, numbers and honesty
+> caveats: **MODEL_CARD.md**. The items below are updated to match;
+> `REAL_DATA_FINDINGS.md` keeps every older write-up for the before/after
+> comparison.
 
-**Audio calibration is now validated, and the mapping needs redefining.**
-Level 1 (arithmetic) still passes. Level 2 (`validate_audio_normalization.py`,
-now run against real RAVDESS speech) found real distress audio - angry,
-fearful, disgust, studio-recorded, close mic, the loudest realistic case -
-reads `AudioEnergy` **median 0.0013, p95 0.085** on the current
-`clamp(audioRmsEnergy / 32768, 0, 1)` scale. The old training data assumed
-0.55-0.91 for emergencies; that assumption was wrong by roughly an order of
-magnitude. A real pocketed phone will read even lower than RAVDESS's
-close-mic studio recordings. **Ask Aarush:** the AudioEnergy scale should be
-redefined (a much smaller full-scale reference, or log/dB) before this
-feature carries any real signal - right now it is close to a constant near 0
-for both classes. See `data/audio_validation_report.json`.
+**AudioEnergy is now a dB scale, fitted against real RAVDESS speech
+(2026-09-06).** The old linear `clamp(audioRmsEnergy / 32768, 0, 1)` was
+validated and found dead - real distress audio (angry/fearful/disgust,
+studio-recorded, close mic, the loudest realistic case) read median 0.0013,
+p95 0.085, nowhere near the 0.55-0.91 the old training data assumed.
 
-**Aarush's decision (2026-09-06): defer the rescale.** Ship the current model
-with AudioEnergy near-dead now; redefine the scale as a coordinated
-fast-follow where he changes the Kotlin `AUDIO_RMS_FULL_SCALE`/mapping in the
-same change as any Python retrain that assumes a new scale - never one side
-alone, or it's train/serve skew. Nothing about the audio formula changed in
-the 2026-09-06 retrain.
+Per Aarush's request, the mapping is now:
+
+```
+AudioEnergy = clamp((20*log10(max(audioRmsEnergy,1)/32768) - AUDIO_FLOOR_DB)
+                     / (AUDIO_CEIL_DB - AUDIO_FLOOR_DB), 0, 1)
+AUDIO_FLOOR_DB = -32.0    AUDIO_CEIL_DB = -20.0
+```
+
+`AUDIO_FLOOR_DB`/`AUDIO_CEIL_DB` live in `phase4/sensor_packet_adapter.py`
+(single source of truth; `phase5/dataset_adapters.py` imports them, never
+redefines them) and are fitted, not guessed: RAVDESS's p95 dB values put
+distress at -21.4 dB and non-distress at -29.8 dB - a real but modest ~8 dB
+gap that is consistent from p90 to p99. Hitting Aarush's target (distress
+p95 -> ~0.85-0.9, non-distress p95 -> ~0.1-0.2) forces a **narrow 12 dB
+window**, dictated by that ~8 dB gap, not chosen freely - which makes this
+scale proportionally more sensitive to microphone gain/distance than a wider
+window would be. Real measured result:
+`data/audio_validation_report.json` -> distress p95 = 0.8823, non-distress
+p95 = 0.182. See the constant's docstring in `sensor_packet_adapter.py` for
+the full derivation and that tradeoff.
+
+**This is a lockstep change - Kotlin must mirror it in the same window.**
+Nothing here is complete until Aarush's `FeatureExtractor.kt` applies the
+identical formula and constants; `phase4/test_contract_sync.py` now checks
+`AUDIO_FLOOR_DB`/`AUDIO_CEIL_DB` in Kotlin against `model_contract.json` the
+same way it already does for `AUDIO_RMS_FULL_SCALE`, and will start failing
+(usefully) instead of skipping the moment `mobile-client` carries the
+matching constants.
+
+**Retrained on this scale** (`phase5/train_tflite_model.py --dataset fusion
+--write-model`) - see `MODEL_CARD.md` for the honest before/after numbers.
+
+**Still open, not fixed by this rescale:** whether a real pocketed phone's
+microphone captures anything at all. Aarush is separately verifying this -
+some on-device sessions read a flat 0.0. A rescale of a signal that never
+arrives changes nothing; on-device validation (Level 2 with a real .wav via
+`--wav`) is still the only thing that closes this for real.
 
 **The retrained model fixes the false-positive defect, and the GPS defect is
 now fixed too.** On the same real-motion sweep (10,824 windows, 65 subjects,

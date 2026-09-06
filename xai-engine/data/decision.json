@@ -1,7 +1,7 @@
 {
     "EmergencyStatus": false,
     "Prediction": "Normal",
-    "Confidence": 0.0141,
+    "Confidence": 0.0015,
     "Threshold": 0.8,
     "SessionID": "SESS-DEMO0001",
     "TimestampMs": 1734900000000

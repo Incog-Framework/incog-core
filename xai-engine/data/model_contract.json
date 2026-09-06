@@ -16,6 +16,9 @@
     },
     "fallAccelerationThreshold": 15,
     "audioRmsFullScale": 32768.0,
+    "audioFloorDb": -32.0,
+    "audioCeilDb": -20.0,
+    "audioEnergyFormula": "clamp((20*log10(max(audioRmsEnergy,1)/audioRmsFullScale) - audioFloorDb) / (audioCeilDb - audioFloorDb), 0, 1) - revised 2026-09-06, dB not linear; see sensor_packet_adapter.py AUDIO_FLOOR_DB for derivation",
     "classificationThreshold": 0.5,
     "decisionThreshold": 0.8,
     "modelInputShape": [
@@ -31,6 +34,6 @@
     "possibleFallEncoding": "1.0 / 0.0",
     "possibleFallUsesUnroundedPeak": true,
     "modelFile": "data/emergency_model.tflite",
-    "modelSha256": "669f4495b28d25ca1e354784a6a0f12523b2fb1a6eaca6114c26753e2e05fd93",
+    "modelSha256": "22763a8b32abaad02887d3b208deba2f2dbda21b46424fa8a12cf1652a1130e6",
     "modelMustMatchAsset": "mobile-client/app/src/main/assets/emergency_model.tflite"
 }

@@ -29,6 +29,8 @@ from feature_extraction import (            # noqa: E402
     FEATURE_ORDER
 )
 from sensor_packet_adapter import (         # noqa: E402
+    AUDIO_CEIL_DB,
+    AUDIO_FLOOR_DB,
     AUDIO_RMS_FULL_SCALE,
     compute_feature_vector_from_packet
 )
@@ -94,7 +96,7 @@ CASES = [
         "two_samples_ddof1_variance",
         [_sample(3.0, 0.0, 0.0), _sample(5.0, 0.0, 0.0)],
         # mags [3,5] -> ddof=1 variance 2.0 (population variance would be 1.0)
-        16384.0,                            # exactly 0.5 after rescale
+        16384.0,                            # -6.02 dB, above AUDIO_CEIL_DB -> clamps to 1.0
         2.5
     ),
     _packet(
@@ -186,6 +188,14 @@ def main():
                 },
                 "fallAccelerationThreshold": FALL_ACCELERATION_THRESHOLD,
                 "audioRmsFullScale": AUDIO_RMS_FULL_SCALE,
+                "audioFloorDb": AUDIO_FLOOR_DB,
+                "audioCeilDb": AUDIO_CEIL_DB,
+                "audioEnergyFormula": (
+                    "clamp((20*log10(max(audioRmsEnergy,1)/audioRmsFullScale) "
+                    "- audioFloorDb) / (audioCeilDb - audioFloorDb), 0, 1) "
+                    "- revised 2026-09-06, dB not linear; see "
+                    "sensor_packet_adapter.py AUDIO_FLOOR_DB for derivation"
+                ),
                 "classificationThreshold": CLASSIFICATION_THRESHOLD,
                 "decisionThreshold": DECISION_THRESHOLD,
                 "modelInputShape": [1, len(FEATURE_ORDER)],

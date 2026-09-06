@@ -28,8 +28,8 @@ Feature <-> packet field mapping:
 
     PeakAcceleration  <- max(||accel||) over accelSamples                 (m/s^2, includes gravity)
     MotionVariance    <- sample variance (ddof=1) of ||accel|| over accelSamples
-    AudioEnergy       <- audioRmsEnergy rescaled from raw PCM16 amplitude to the [0, 1] range the
-                          model was trained on (see AUDIO_RMS_FULL_SCALE note below)
+    AudioEnergy       <- audioRmsEnergy rescaled to [0, 1] on a dB (not linear) scale - see
+                          AUDIO_FLOOR_DB / AUDIO_CEIL_DB below
     GPSVelocity       <- latestLocation.speedMps, or 0.0 if no GPS fix yet (packet only carries the
                           latest fix, not a windowed series, so there is nothing to average)
     PossibleFall      <- PeakAcceleration > FALL_ACCELERATION_THRESHOLD   (same rule, unchanged)
@@ -37,14 +37,29 @@ Feature <-> packet field mapping:
     gyroSamples/latestGyro are accepted but intentionally unused: the trained model's 5 features
     never included gyroscope data, and this integration does not change the model.
 
-Concrete incompatibility found (see xai-engine/CLAUDE.md "Open coordination items"):
-    audioRmsEnergy is the RMS of raw PCM16 samples (0..32767 full-scale), not a pre-normalized
-    [0, 1] energy value. The training data's AudioEnergy column is in [0, 1]. This adapter rescales
-    by the PCM16 full-scale amplitude (32768) as the best available mapping; it has not been
-    validated against real recorded audio and should be checked on-device (compare AudioEnergy
-    values for quiet ambient vs. a loud/distress sound) before being trusted for the confidence
-    threshold. This is an adapter-side unit conversion, not a model retrain.
+AudioEnergy scale (revised 2026-09-06 - dB, not linear):
+    The original `audioRmsEnergy / 32768` linear mapping was validated against real RAVDESS
+    distress speech and found dead on arrival: even a studio-recorded, close-mic scream read
+    median 0.0013 / p95 0.085 - nowhere near usable. Linear RMS ratios of quiet-to-loud speech
+    only span about 1.5 orders of magnitude, while human hearing (and "how loud is this,
+    relatively") is logarithmic - so a dB scale was chosen instead, per Aarush's request, and
+    the FLOOR_DB/CEIL_DB below were fitted against the real RAVDESS distribution, not guessed:
+
+        AudioEnergy = clamp((20*log10(max(audioRmsEnergy, 1) / 32768) - AUDIO_FLOOR_DB)
+                             / (AUDIO_CEIL_DB - AUDIO_FLOOR_DB), 0, 1)
+
+    See AUDIO_FLOOR_DB / AUDIO_CEIL_DB below for exactly how those two numbers were derived and
+    what they mean, and data/audio_validation_report.json for the full RAVDESS calibration.
+    This is a **lockstep** change: Kotlin's FeatureExtractor must apply the identical formula
+    and constants in the same change, or the phone and the trained model disagree about what a
+    given microphone reading means (train/serve skew). Never edit one side alone.
+
+    Still open, not fixed by this rescale: whether a real pocketed phone's microphone captures
+    anything at all (Aarush is separately verifying this - some on-device sessions read a flat
+    0.0). A rescale of a signal that isn't arriving changes nothing.
 """
+
+import math
 
 import numpy as np
 
@@ -59,10 +74,40 @@ from feature_extraction import (
 # Constants
 # ============================================================
 
-# 16-bit PCM full-scale amplitude, used to rescale audioRmsEnergy (raw PCM
-# RMS, 0..32767) into the [0, 1] range the model's AudioEnergy feature was
-# trained on. See the module docstring "Concrete incompatibility" note.
+# 16-bit PCM full-scale amplitude - the reference audioRmsEnergy is expressed
+# relative to, in the log-ratio below. Not itself the on/off switch for the
+# feature's usable range any more; AUDIO_FLOOR_DB/AUDIO_CEIL_DB are.
 AUDIO_RMS_FULL_SCALE = 32768.0
+
+# dB(x) = 20*log10(max(x, 1) / AUDIO_RMS_FULL_SCALE) - always <= 0 dB, floored
+# at 20*log10(1/32768) = -90.3 dB (one PCM16 count) so a genuinely-zero
+# reading never hits -inf.
+#
+# AUDIO_FLOOR_DB / AUDIO_CEIL_DB were fitted 2026-09-06 against
+# data/raw/ravdess (82,532 real 1024-frame chunks, angry/fearful/disgust =
+# "distress" vs every other emotion), not guessed:
+#
+#     dB(rms), by percentile          distress   non-distress
+#     p90                              -26.8         -34.4
+#     p95  ("a loud vocalisation")     -21.4         -29.8
+#     p99                              -14.2         -22.9
+#
+# Distress reads a consistent ~7-9 dB louder than non-distress at every
+# percentile from p90 up - a real, honest signal, but a modest one; RAVDESS
+# is studio speech, not room ambience, so there is no true "silence" class to
+# anchor against, only "calm speech" vs "distressed speech". FLOOR_DB/CEIL_DB
+# are chosen so the p95 ("scream") of distress lands at ~0.88 and the p95
+# ("loudest ordinary talking") of non-distress lands at ~0.18, per Aarush's
+# request. That forces a NARROW 12 dB window (dictated by the ~8 dB real gap
+# between the two p95s, not chosen freely) - which means this scale is
+# proportionally more sensitive to microphone gain/distance drift than a
+# wider window would be. That tradeoff is real: ask before widening it to
+# "fix" gain sensitivity, because it will also compress distress/non-distress
+# apart-ness back down. Below AUDIO_FLOOR_DB reads 0.0 (the large majority of
+# both classes - most 64 ms chunks of speech are pauses, not vocalisation);
+# above AUDIO_CEIL_DB reads 1.0.
+AUDIO_FLOOR_DB = -32.0
+AUDIO_CEIL_DB = -20.0
 
 
 # ============================================================
@@ -235,11 +280,15 @@ def compute_feature_vector_from_packet(packet: dict) -> dict:
 
     audio_rms_energy = float(packet["audioRmsEnergy"])
 
-    # Clamped at BOTH ends. RMS is non-negative by construction on the device
-    # (AudioBufferCollector.computeRms), so the lower clamp never fires for a
-    # well-formed packet - it is here so a malformed/negative value from a JSON
-    # bridge cannot feed an out-of-contract feature into the model.
-    audio_energy = min(max(audio_rms_energy / AUDIO_RMS_FULL_SCALE, 0.0), 1.0)
+    # dB scale (see AUDIO_FLOOR_DB / AUDIO_CEIL_DB above). max(x, 1) floors
+    # the ratio at one PCM16 count before the log, so true digital silence
+    # (rms=0, or a malformed negative value from a JSON bridge) maps to the
+    # scale's -90.3 dB floor instead of -inf, and clamped at both ends after.
+    audio_db = 20.0 * math.log10(max(audio_rms_energy, 1.0) / AUDIO_RMS_FULL_SCALE)
+    audio_energy = min(
+        max((audio_db - AUDIO_FLOOR_DB) / (AUDIO_CEIL_DB - AUDIO_FLOOR_DB), 0.0),
+        1.0
+    )
 
     # latestLocation is null until the first GPS fix. Kotlin's LocationReading
     # always carries a non-null speedMps, but a JSON bridge can drop the field;

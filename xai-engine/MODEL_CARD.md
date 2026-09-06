@@ -1,29 +1,63 @@
 # Model card — emergency_model.tflite
 
-**Generated:** 2026-09-06. **Model SHA-256:** `669f4495b28d25ca1e354784a6a0f12523b2fb1a6eaca6114c26753e2e05fd93`
-(see `data/model_contract.json`). **Not yet vendored to the phone** — Aarush is blocked on
-`feat/real-model` being pushed before he can copy this file to
-`mobile-client/app/src/main/assets/emergency_model.tflite`.
+**Generated:** 2026-09-06. **Model SHA-256:** `22763a8b32abaad02887d3b208deba2f2dbda21b46424fa8a12cf1652a1130e6`
+(see `data/model_contract.json`). **Not yet vendored to the phone.**
 
-## What changed since the last card (2026-09-05)
+> **Do not vendor this `.tflite` without the matching Kotlin change.** This retrain assumes the
+> NEW AudioEnergy dB scale (below). If Aarush copies this file into `mobile-client/assets/` while
+> `FeatureExtractor.kt` still computes the OLD linear `audioRmsEnergy / 32768`, the phone will feed
+> the model AudioEnergy values on the wrong scale — worse train/serve skew than before this
+> rescale, not a neutral no-op. Vendor the model and the Kotlin formula change together.
 
-Aarush reviewed the first real-data retrain and found a safety-critical defect: every fall in
-that training fusion was assigned `GPSVelocity = 0` by an activity-keyed heuristic, so the model
-learned "moving fast ⇒ not an emergency" — exactly backwards, because it would suppress the alert
-precisely when someone is fleeing an attacker at speed. **This retrain fixes that.**
-`phase5/dataset_adapters.py:load_fusion()` now samples `GPSVelocity` uniformly from 0–3 m/s,
-**independent of Activity and of the Emergency label**, so the model cannot learn any GPS-vs-label
-correlation in either direction. Pinned by
-`phase5/test_dataset_adapters.py:test_fusion_gps_velocity_is_not_correlated_with_the_label`.
+## Retrain history
 
-Everything else (datasets, label definition, the AudioEnergy fusion, the feature contract) is
-unchanged from the previous card — see below for the full picture, not just the diff.
+1. **2026-09-05** — first real-data retrain (30 synthetic rows → 10,824 real UCI HAR + ShimFall +
+   RAVDESS fusion windows). Fixed the false-positive defect. Introduced a defect: every fall was
+   assigned `GPSVelocity = 0`, so the model learned "moving fast ⇒ not an emergency."
+2. **2026-09-06, fix 1** — Aarush caught the GPS defect: it would suppress the alert exactly when
+   someone is fleeing at speed. `load_fusion()`'s `GPSVelocity` is now sampled uniformly from
+   0–3 m/s, **independent of Activity and of the Emergency label**. Pinned by
+   `phase5/test_dataset_adapters.py:test_fusion_gps_velocity_is_not_correlated_with_the_label`.
+3. **2026-09-06, fix 2 (this card)** — AudioEnergy moved from the dead linear scale to a dB scale
+   fitted against real RAVDESS speech, per Aarush's request. See "AudioEnergy rescale" below.
 
-**AudioEnergy rescale is deliberately deferred.** The previous card flagged that real RAVDESS
-distress audio reads far below what the old synthetic data assumed. Aarush's call: ship this model
-with AudioEnergy near-dead first, then redefine the scale as a **coordinated** fast-follow (he
-changes Kotlin's `AUDIO_RMS_FULL_SCALE`/mapping in the same change as any Python retrain, so the
-two sides never drift). Nothing about the audio formula changed in this retrain.
+## AudioEnergy rescale (this retrain)
+
+The previous card flagged that real RAVDESS distress audio reads far below what the old
+`clamp(audioRmsEnergy / 32768, 0, 1)` linear scale's training assumptions expected — median
+0.0013, p95 0.085, vs. an assumed 0.55–0.91. Aarush's initial call was to ship with audio near-dead
+and defer the rescale; he then asked for the rescale directly, with a target of "scream ~0.8–0.9,
+ambient ~0.1–0.2", to be fitted against real data and applied in lockstep with an identical Kotlin
+change.
+
+**New formula** (`phase4/sensor_packet_adapter.py`, single source of truth — `phase5/
+dataset_adapters.py` imports it, never redefines it):
+
+```
+AudioEnergy = clamp((20*log10(max(audioRmsEnergy, 1) / 32768) - AUDIO_FLOOR_DB)
+                     / (AUDIO_CEIL_DB - AUDIO_FLOOR_DB), 0, 1)
+AUDIO_FLOOR_DB = -32.0        AUDIO_CEIL_DB = -20.0
+```
+
+**How FLOOR/CEIL were chosen — read this before copying the numbers into Kotlin.** RAVDESS's real
+dB distribution (82,532 chunks) puts distress (angry/fearful/disgust) at p95 = −21.4 dB and
+non-distress at p95 = −29.8 dB — separated by a real, honest ~8 dB at every percentile from p90 to
+p99, not more. Hitting Aarush's target band forces the window to be **narrow (12 dB)**: that's the
+math (`8.4 dB gap / (0.85 − 0.15) target separation ≈ 12 dB`), not a free choice. A narrow window
+is proportionally *more* sensitive to microphone gain/distance drift than a wide one would be —
+real, not hypothetical, and worth knowing before assuming this is "solved." Measured result on
+real RAVDESS audio: distress p95 → **0.8823**, non-distress p95 → **0.182** — squarely on target.
+Full derivation: the `AUDIO_FLOOR_DB` docstring in `sensor_packet_adapter.py`.
+
+**This is a lockstep change, not yet complete.** Kotlin's `FeatureExtractor.kt` must apply the
+identical formula and these two constants before this is real on-device — nothing here changes
+what the phone does until he does. `phase4/test_contract_sync.py` now checks
+`AUDIO_FLOOR_DB`/`AUDIO_CEIL_DB` against Kotlin the same way it already checks
+`AUDIO_RMS_FULL_SCALE`, gracefully skipped until `mobile-client` carries the matching constants.
+
+**Still unresolved, and this rescale does not touch it:** whether a real pocketed phone's
+microphone captures anything at all. Aarush is separately verifying this after some on-device
+sessions read a flat 0.0. Rescaling a signal that never arrives changes nothing.
 
 ## Datasets
 
@@ -60,9 +94,9 @@ the same moment, and none records GPS at all. `phase5/dataset_adapters.py:load_f
 that gap by construction, not observation:
 
 - **AudioEnergy** is resampled per row from RAVDESS clips matching the row's label (distress
-  emotions — angry/fearful/disgust — for Emergency, everything else for Normal). This assumes
-  voice distress and body motion are conditionally independent given the label, which is very
-  likely false (a real fall can happen in near-silence).
+  emotions — angry/fearful/disgust — for Emergency, everything else for Normal), converted through
+  the dB scale above. This assumes voice distress and body motion are conditionally independent
+  given the label, which is very likely false (a real fall can happen in near-silence).
 - **GPSVelocity** (revised 2026-09-06) is sampled uniformly from 0–3 m/s, **independent of
   Activity and of the Emergency label** — deliberately non-predictive. It carries no information
   the model could use in either direction, until real GPS+incident captures exist.
@@ -75,57 +109,57 @@ produces, no matter the score (`data/tflite_model_metrics.json`).
 Two separate measurements, because they answer different questions.
 
 **1. On the fusion test set** (subject-level split, 13 of 65 subjects held out, 2,100 rows) — this
-measures the classifier's fit to its own (partly constructed) training distribution. Neutralizing
-GPS removed a signal the earlier model was silently leaning on, so this number is honestly lower
-than the previous card's — that is the fix working, not a regression to be hidden:
+measures the classifier's fit to its own (partly constructed) training distribution:
 
-| @ dispatch threshold 0.80 | Previous retrain (GPS keyed to label) | **This retrain (GPS neutral)** |
+| @ dispatch threshold 0.80 | GPS-fix retrain | **This retrain (+ dB audio)** |
 |---|---:|---:|
-| Accuracy / Precision / Recall / F1 | 0.997 / 0.983 / 0.905 / 0.942 | 0.992 / 1.000 / 0.730 / 0.844 |
-| False-positive rate | 0.05% | 0.0% |
-| ROC-AUC | 0.999 | 0.972 |
+| Accuracy / Precision / Recall / F1 | 0.992 / 1.000 / 0.730 / 0.844 | 0.991 / 0.979 / 0.730 / 0.836 |
+| False-positive rate | 0.0% | 0.05% (1 / 2,037) |
+| ROC-AUC | 0.972 | 0.971 |
+
+Essentially unchanged from the GPS-fix retrain — expected, since this dataset's Emergency label is
+driven by real fall dynamics (`PeakAcceleration`/`MotionVariance`), and AudioEnergy/GPSVelocity are
+both constructed, secondary signals for it. The rescale mattered for what the *number itself means*
+(see below), not for how well the network fits.
 
 **2. On real motion only** (UCI HAR + ShimFall, `phase5/evaluate_real_fpr.py`, no fusion, AudioEnergy/
 GPSVelocity swept rather than assumed) — this is the number that matters, because it never touches
 the constructed pairing:
 
-| | First model (30 synthetic rows) | Previous retrain (GPS keyed to label) | **This retrain (GPS neutral)** |
+| | First model (synthetic) | GPS-fix retrain | **This retrain (+ dB audio)** |
 |---|---:|---:|---:|
-| FPR range across the sweep | 0.6% – 39.8% | 0.0% – 10.3% | **0.0% – 5.6%** |
-| Most defensible cell (audio 0.05, gps 1.5) | 5.8% | 0.0% | **0.1%** |
-| Walking-downstairs fire rate | 40.3% | 0.0% | **0.6%** |
-| Jumping fire rate | 100.0% | 0.0% | **8.6%** |
-| Recall at gps=0 (realistic, just collapsed) | 67.9% – 99.4% | 92.7% – 95.2% | **75.6% – 83.8%** |
-| **Recall at gps=3.0 (fleeing at speed)** | not measured | **0%, every audio level** | **72.1% – 94.6%** |
+| FPR range across the sweep | 0.6% – 39.8% | 0.0% – 5.6% | **0.0% – 0.6%** |
+| Most defensible cell (audio 0.05, gps 1.5) | 5.8% | 0.1% | **0.0%** |
+| Walking-downstairs fire rate | 40.3% | 0.6% | **0.1%** |
+| Jumping fire rate | 100.0% | 8.6% | **5.7%** |
+| Recall at gps=0 (realistic, just collapsed) | 67.9% – 99.4% | 75.6% – 83.8% | **76.8% – 82.9%** |
+| **Recall at gps=3.0 (fleeing at speed)** | not measured | 72.1% – 94.6% | **66.0% – 78.4%** |
 
-**The GPS fix is the headline of this retrain.** The previous model's recall *collapsed to 0% the
-instant assumed GPS velocity reached 1.5 m/s or higher* — it had learned that fast movement rules
-out an emergency, so a person fleeing at speed while also having (say) fallen would never trigger
-an alert. That number is now 72–95%, and in most cells recall goes *up*, not down, as assumed GPS
-rises (the network still keys mainly on `PeakAcceleration`/`MotionVariance`, and vigorous
-real-world motion — which is what a fall or a struggle actually is — happens to correlate with
-higher assumed GPS in this sweep; it is not evidence the model detects fleeing, see Limitations).
-The false-positive picture stayed materially the same (0.0%–5.6%, essentially all real activities
-at 0% at the realistic cell) — fixing the GPS defect did not reopen the false-positive problem the
-first retrain solved. Recall at the realistic "just collapsed" cell (gps=0) dropped from ~93% to
-~76–84%: that is the honest cost of no longer letting the model use a fabricated GPS=0 shortcut for
-falls, not a new bug.
+**Headline: false-positive rate is now below the 5% target for every combination of assumed
+audio/GPS tested (worst case 0.6%)** — the first time that has been true across the whole sweep,
+not just the "most defensible" cell. **The GPS fix still holds**: recall at gps=3.0 never
+collapses to 0% (it did, entirely, before the 2026-09-06 GPS fix); it now sits at 66–78%, a bit
+lower than the GPS-fix retrain's 72–95% because this network saw a different (more realistic,
+mostly-near-zero) AudioEnergy distribution during training and its response surface shifted with
+it — an honest side effect of training on better-calibrated data, not a regression to hide.
+Recall at gps=0 held essentially flat (76.8–82.9% vs. 75.6–83.8%). Nothing here is evidence the
+model detects fleeing specifically — see Limitations.
 
 ## Limitations — read before deploying
 
 1. **This does not add fleeing-detection capability — it only stops actively working against it.**
    GPS is now *neutral*, not *informative*. The recall-rises-with-GPS pattern above is an artifact
    of vigorous motion correlating with the swept GPS values, not a learned "fleeing" concept. Real
-   GPS+incident captures are the only way to teach the model that relationship for real.
-2. **AudioEnergy is validated, and the news is still bad — unchanged from the last card, and
-   deliberately not fixed here.** RAVDESS distress speech (angry/fearful/disgust, studio-recorded,
-   close mic — the loudest realistic case) reads `median 0.0013, p95 0.085` on the current
-   `clamp(audioRmsEnergy / 32768, 0, 1)` scale — nowhere near the `0.55–0.91` the old synthetic
-   data assumed. A real pocketed phone will read even lower. At this scale AudioEnergy is close to
-   a constant near 0 for both classes; the model is effectively running on 4 features. **Per
-   Aarush's decision (2026-09-06): ship as-is, redefine the scale as a coordinated fast-follow so
-   Python retraining and the Kotlin `AUDIO_RMS_FULL_SCALE`/mapping change together — never one side
-   alone.** See `data/audio_validation_report.json` and `phase5/validate_audio_normalization.py`.
+   GPS+incident captures are the only way to teach the model that relationship for real — see
+   `CAPTURE_PROTOCOL.md` for the concrete capture plan handed to Aarush for this.
+2. **AudioEnergy now carries real signal (fitted, not fixed) — but the on-device question is
+   still open.** The rescale (see above) makes RAVDESS distress land at p95 ≈ 0.88 and non-distress
+   at p95 ≈ 0.18, instead of both being near-zero. That is a real improvement over the linear
+   scale, but three caveats remain: (a) it is fitted against studio speech, not a muffled pocketed
+   phone — the true on-device distribution is still unmeasured; (b) the ~8 dB real separation
+   between distress and non-distress is modest, so the fitted window is narrow (12 dB) and
+   proportionally sensitive to mic gain/distance; (c) **it is not live until Aarush mirrors it in
+   Kotlin** — see `data/audio_validation_report.json` and `phase5/validate_audio_normalization.py`.
 3. **No staged "violent shaking/struggle" data anywhere.** Not represented at all.
 4. **Body position mismatch.** UCI HAR is waist-worn, ShimFall is chest-strapped; neither is a
    phone loose in a pocket or bag.
@@ -144,10 +178,15 @@ falls, not a new bug.
 
 1. Push `feat/real-model` so Aarush can re-vendor `data/emergency_model.tflite` →
    `mobile-client/.../assets/emergency_model.tflite` — he is blocked on this.
-2. Real GPS+incident captures — the only fix for limitation 1 that doesn't require more
-   fabrication, and the only way to actually gain fleeing-detection rather than just stop
-   suppressing it.
-3. AudioEnergy rescale, coordinated with Aarush's Kotlin change, once the current model is shipped
-   and stable.
-4. Re-run `phase5/evaluate_real_fpr.py` after any further retrain; it is the regression test —
-   specifically watch the recall-at-gps=3.0 column so this fix does not silently regress.
+2. **Aarush mirrors the AudioEnergy dB formula in `FeatureExtractor.kt`** using the exact
+   `AUDIO_FLOOR_DB`/`AUDIO_CEIL_DB` constants above — the phone runs the OLD linear formula until
+   he does, which is now a worse mismatch than before the rescale (train/serve skew), not a neutral
+   no-op. This is the priority follow-up.
+3. Real GPS+incident captures, per `CAPTURE_PROTOCOL.md` — the only fix for limitation 1 that
+   doesn't require more fabrication, and the only way to actually gain fleeing-detection rather
+   than just stop suppressing it.
+4. On-device audio validation once Aarush's mic-capture investigation closes — Level 2 with a real
+   `.wav` (`python phase5/validate_audio_normalization.py --wav ...`) is the only way to know if
+   AUDIO_FLOOR_DB/AUDIO_CEIL_DB are reachable by an actual pocketed phone.
+5. Re-run `phase5/evaluate_real_fpr.py` after any further retrain; it is the regression test —
+   specifically watch the recall-at-gps=3.0 column so the GPS fix does not silently regress.

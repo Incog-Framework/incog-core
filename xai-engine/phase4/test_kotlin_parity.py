@@ -33,6 +33,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from feature_extraction import FALL_ACCELERATION_THRESHOLD, FEATURE_ORDER
 from sensor_packet_adapter import (
+    AUDIO_CEIL_DB,
+    AUDIO_FLOOR_DB,
     AUDIO_RMS_FULL_SCALE,
     compute_feature_vector_from_packet
 )
@@ -96,8 +98,11 @@ def kotlin_reference_extract(packet):
             / (len(magnitudes) - 1)
         )
 
+    audio_db = 20.0 * math.log10(
+        max(packet["audioRmsEnergy"], 1.0) / AUDIO_RMS_FULL_SCALE
+    )
     audio_energy = min(
-        packet["audioRmsEnergy"] / AUDIO_RMS_FULL_SCALE,
+        max((audio_db - AUDIO_FLOOR_DB) / (AUDIO_CEIL_DB - AUDIO_FLOOR_DB), 0.0),
         1.0
     )
 

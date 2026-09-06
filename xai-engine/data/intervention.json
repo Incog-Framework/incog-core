@@ -1,7 +1,7 @@
 {
-    "Timestamp": "2026-09-06T18:09:45.105146",
+    "Timestamp": "2026-09-07T00:01:00.434705",
     "Prediction": "Normal",
-    "Confidence": 0.0141,
+    "Confidence": 0.0015,
     "EmergencyStatus": false,
     "DecisionThreshold": 0.8,
     "Intervention": {

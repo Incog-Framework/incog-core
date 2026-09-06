@@ -5,13 +5,14 @@ import Kotlin constants and vice versa. This test asserts every copy still
 agrees with data/model_contract.json:
 
     Python  phase4/feature_extraction.py      FALL_ACCELERATION_THRESHOLD, FEATURE_ORDER
-            phase4/sensor_packet_adapter.py   AUDIO_RMS_FULL_SCALE
+            phase4/sensor_packet_adapter.py   AUDIO_RMS_FULL_SCALE, AUDIO_FLOOR_DB, AUDIO_CEIL_DB
             phase6/decision_engine.py         THRESHOLD (0.80)
             phase5/tflite_predict.py          classification cutoff (0.50)
             data/model_metadata.json          both thresholds + feature list
             data/tflite_feature_order.json    feature order
 
-    Kotlin  ai/FeatureExtractor.kt            FALL_ACCELERATION_THRESHOLD, AUDIO_RMS_FULL_SCALE
+    Kotlin  ai/FeatureExtractor.kt            FALL_ACCELERATION_THRESHOLD, AUDIO_RMS_FULL_SCALE,
+                                               AUDIO_FLOOR_DB, AUDIO_CEIL_DB
             ai/EmergencyClassifier.kt         CLASSIFICATION_THRESHOLD, DECISION_THRESHOLD
             ai/FeatureVector.kt               model input order
 
@@ -50,7 +51,11 @@ from feature_extraction import (            # noqa: E402
     FALL_ACCELERATION_THRESHOLD,
     FEATURE_ORDER
 )
-from sensor_packet_adapter import AUDIO_RMS_FULL_SCALE   # noqa: E402
+from sensor_packet_adapter import (         # noqa: E402
+    AUDIO_CEIL_DB,
+    AUDIO_FLOOR_DB,
+    AUDIO_RMS_FULL_SCALE
+)
 
 
 def contract():
@@ -78,6 +83,8 @@ def test_python_constants_match_the_contract():
     assert FEATURE_ORDER == spec["featureOrder"]
     assert FALL_ACCELERATION_THRESHOLD == spec["fallAccelerationThreshold"]
     assert AUDIO_RMS_FULL_SCALE == spec["audioRmsFullScale"]
+    assert AUDIO_FLOOR_DB == spec["audioFloorDb"]
+    assert AUDIO_CEIL_DB == spec["audioCeilDb"]
 
 
 def test_decision_engine_threshold_matches_the_contract():
@@ -162,9 +169,21 @@ def test_kotlin_feature_extractor_constants_match_the_contract():
         r"AUDIO_RMS_FULL_SCALE\s*=\s*([0-9.]+)",
         "AUDIO_RMS_FULL_SCALE"
     )
+    floor_db = _read_number(
+        path,
+        r"AUDIO_FLOOR_DB\s*=\s*(-?[0-9.]+)",
+        "AUDIO_FLOOR_DB"
+    )
+    ceil_db = _read_number(
+        path,
+        r"AUDIO_CEIL_DB\s*=\s*(-?[0-9.]+)",
+        "AUDIO_CEIL_DB"
+    )
 
     assert fall == spec["fallAccelerationThreshold"]
     assert full_scale == spec["audioRmsFullScale"]
+    assert floor_db == spec["audioFloorDb"]
+    assert ceil_db == spec["audioCeilDb"]
 
 
 def test_kotlin_classifier_thresholds_match_the_contract():

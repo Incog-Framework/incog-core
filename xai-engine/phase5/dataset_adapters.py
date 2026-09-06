@@ -56,6 +56,11 @@ from feature_extraction import (            # noqa: E402
     peak_and_variance,
     possible_fall
 )
+from sensor_packet_adapter import (         # noqa: E402
+    AUDIO_CEIL_DB,
+    AUDIO_FLOOR_DB,
+    AUDIO_RMS_FULL_SCALE
+)
 
 DATA_DIR = BASE_DIR / "data"
 RAW_DIR = DATA_DIR / "raw"
@@ -172,13 +177,17 @@ def magnitudes_from_xyz(frame, columns=("x", "y", "z"), scale=1.0):
 #
 # Mirrors the two Kotlin pieces that together produce the feature:
 #   AudioBufferCollector.computeRms   RMS over signed PCM16 samples
-#   FeatureExtractor                  / 32768, clamped
+#   FeatureExtractor                  dB rescale, clamped - see
+#                                      sensor_packet_adapter.AUDIO_FLOOR_DB
+#
+# AUDIO_RMS_FULL_SCALE / AUDIO_FLOOR_DB / AUDIO_CEIL_DB are imported from
+# sensor_packet_adapter, not redefined here, so this training-data path and
+# the real-packet path can never independently drift on the formula.
 #
 # Kept dependency-free (numpy only) so it runs anywhere; the stdlib audioop
 # module that would otherwise do this was removed in Python 3.13.
 # ============================================================
 
-AUDIO_RMS_FULL_SCALE = 32768.0
 DEVICE_SAMPLE_RATE_HZ = 16000        # AudioBufferCollector.SAMPLE_RATE
 
 
@@ -196,7 +205,10 @@ def pcm16_rms(samples):
 def pcm16_rms_to_audio_energy(samples):
     """Full device mapping: PCM16 samples -> the model's AudioEnergy feature."""
 
-    return min(max(pcm16_rms(samples) / AUDIO_RMS_FULL_SCALE, 0.0), 1.0)
+    rms = pcm16_rms(samples)
+    db = 20.0 * np.log10(max(rms, 1.0) / AUDIO_RMS_FULL_SCALE)
+
+    return min(max((db - AUDIO_FLOOR_DB) / (AUDIO_CEIL_DB - AUDIO_FLOOR_DB), 0.0), 1.0)
 
 
 def read_wav_as_pcm16_mono_16k(path):
@@ -789,8 +801,10 @@ def load_ravdess_audio_energy():
     03-01-06-01-02-01-12.wav -> emotion 06 (fearful).
 
     Each clip is converted the way the device does it: mono, 16 kHz, PCM16,
-    then RMS per read-chunk, then / 32768 (AudioBufferCollector.computeRms +
-    FeatureExtractor.AUDIO_RMS_FULL_SCALE).
+    then RMS per read-chunk, then the dB rescale (AudioBufferCollector.computeRms
+    + FeatureExtractor's AUDIO_FLOOR_DB/AUDIO_CEIL_DB - see
+    sensor_packet_adapter.py for the formula and how these two were fitted
+    against this exact dataset).
 
     Returns a DataFrame of AudioEnergy values with a distress flag. This does
     NOT produce trainable 5-feature rows on its own - it is the audio half of
