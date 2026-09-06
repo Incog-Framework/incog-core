@@ -1,5 +1,5 @@
 {
-    "generated_at": "2026-09-02T19:35:02.348305+00:00",
+    "generated_at": "2026-09-06T12:39:58.136285+00:00",
     "contract": {
         "formula": "clamp(audioRmsEnergy / 32768, 0, 1)",
         "full_scale": 32768.0,
@@ -100,8 +100,33 @@
         "does_not_establish": "that real recorded audio produces useful values in [0, 1]"
     },
     "level2_calibration": {
-        "status": "NOT_VALIDATED",
-        "profiles": []
+        "status": "PARTIAL_CORPUS_ONLY",
+        "profiles": [],
+        "ravdess": {
+            "source": "data\\raw\\ravdess",
+            "caveat": "Studio-recorded acted emotion at close mic distance. Real pocket-muffled audio at unknown distance will sit far lower on the same scale, so this bounds the LOUD end only - it is not a substitute for on-device measurement.",
+            "distress": {
+                "label": "distress (angry/fearful/disgust)",
+                "chunks": 33866,
+                "min": 0.0,
+                "p05": 0.0,
+                "median": 0.0013,
+                "p95": 0.085,
+                "max": 0.6161,
+                "mean": 0.0164
+            },
+            "non_distress": {
+                "label": "non-distress",
+                "chunks": 48666,
+                "min": 0.0,
+                "p05": 0.0,
+                "median": 0.0004,
+                "p95": 0.0323,
+                "max": 0.3837,
+                "mean": 0.0066
+            },
+            "separated": true
+        }
     },
     "device_validation_outstanding": true,
     "how_to_close": "Log packet.audioRmsEnergy from GhostStateService during a real Ghost State session - quiet room, normal conversation, shouting, phone in a pocket - and compare the resulting AudioEnergy values against the 0.04-0.91 range the training data assumes."

@@ -275,6 +275,63 @@ def test_real_peaks_are_physically_plausible():
         )
 
 
+def test_fusion_pairs_real_motion_with_ravdess_audio_and_flags_it_honestly():
+    """The fused dataset must never be silently mistaken for a real capture.
+
+    RAVDESS is not tracked by available_datasets() (it lives in
+    AUDIO_LOADERS, not LOADERS - it yields audio only, not trainable 5-feature
+    rows on its own), so this cannot be gated with _available("ravdess") - it
+    would always read False and the test would always skip. Attempt the load
+    and only skip on the exception the loaders actually raise.
+    """
+
+    try:
+        frame, provenance = load_dataset("fusion")
+    except DatasetUnavailable:
+        _skip("fusion (needs uci_har + shimfall + ravdess)")
+        return
+
+    assert not frame[FEATURE_ORDER].isna().any().any(), (
+        "fusion rows must have every feature populated - that is the point"
+    )
+    assert set(frame[TARGET].unique()) == {0, 1}
+
+    # the pairing is constructed, not observed - this must never read True
+    assert provenance["is_production_evidence"] is False
+    assert provenance["is_synthetic"] is False
+    assert "fusion_method" in provenance
+
+    # AudioEnergy must actually separate by label, or the fusion did nothing
+    by_label = frame.groupby(TARGET)["AudioEnergy"].median()
+    assert by_label[1] > by_label[0], (
+        "Emergency rows should skew toward RAVDESS distress audio"
+    )
+
+
+def test_fusion_gps_velocity_is_not_correlated_with_the_label():
+    """Aarush, 2026-09-06: an activity-keyed GPS heuristic taught the model
+    'moving fast = not an emergency', which would suppress the alert exactly
+    when someone is fleeing at speed. GPSVelocity must carry no signal about
+    the label until real GPS+incident captures exist - this pins that down
+    as a regression test, not just a comment.
+    """
+
+    try:
+        frame, _ = load_dataset("fusion")
+    except DatasetUnavailable:
+        _skip("fusion (needs uci_har + shimfall + ravdess)")
+        return
+
+    by_label = frame.groupby(TARGET)["GPSVelocity"].mean()
+
+    assert abs(by_label[1] - by_label[0]) < 0.3, (
+        f"GPSVelocity means differ by label (Normal={by_label[0]:.3f}, "
+        f"Emergency={by_label[1]:.3f}) - this would let the model use GPS "
+        f"as an emergency/normal signal, which is the exact bug being "
+        f"guarded against"
+    )
+
+
 def test_feature_order_is_stable_across_every_corpus():
     for name in LOADERS:
         if not _available(name):
@@ -307,6 +364,8 @@ if __name__ == "__main__":
         test_uci_har_is_negatives_only_with_subjects_and_activities,
         test_real_corpora_leave_unmeasured_channels_as_nan,
         test_metadata_columns_survive_load_dataset,
+        test_fusion_pairs_real_motion_with_ravdess_audio_and_flags_it_honestly,
+        test_fusion_gps_velocity_is_not_correlated_with_the_label,
         test_real_peaks_are_physically_plausible,
         test_feature_order_is_stable_across_every_corpus
     ]

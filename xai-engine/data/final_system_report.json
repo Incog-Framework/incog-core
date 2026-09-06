@@ -1,13 +1,13 @@
 {
-    "ReportTimestamp": "2026-09-03T01:05:01.048101",
+    "ReportTimestamp": "2026-09-06T18:09:45.466730",
     "System": "INCOG AI",
     "FeatureVectorAvailable": true,
     "Prediction": {
-        "Class": "Emergency",
-        "Confidence": 1.0
+        "Class": "Normal",
+        "Confidence": 0.0141
     },
     "Decision": {
-        "EmergencyStatus": true,
+        "EmergencyStatus": false,
         "Threshold": 0.8
     },
     "XAI": {
@@ -15,204 +15,308 @@
         "LIME": true
     },
     "Intervention": {
-        "Action": "Emergency Alert",
-        "Priority": "HIGH",
-        "Message": "Potential emergency condition detected.",
-        "RecommendedAction": "Initiate emergency response."
+        "Action": "No Alert",
+        "Priority": "LOW",
+        "Message": "No emergency condition detected.",
+        "RecommendedAction": "Continue monitoring."
     },
     "Forensics": {
         "EvidenceManifest": true
     },
     "ModelMetrics": {
-        "generated_at": "2026-09-02T16:43:07.778717+00:00",
+        "generated_at": "2026-09-06T12:29:42.771891+00:00",
         "data_provenance": {
-            "dataset": "synthetic",
-            "source": "data\\training_data.csv",
-            "is_synthetic": true,
+            "dataset": "fusion(uci_har+shimfall+ravdess)",
+            "source": "phase5/dataset_adapters.py:load_fusion",
+            "is_synthetic": false,
             "is_production_evidence": false,
-            "real_windows": 0,
-            "subjects": 0,
-            "caveat": "30 hand-written rows, linearly separable on PeakAcceleration alone. Useful only as a pipeline smoke test. Metrics from this dataset say nothing about real-world accuracy or false-positive rate."
+            "real_windows": 10824,
+            "subjects": 65,
+            "components": [
+                {
+                    "dataset": "uci_har",
+                    "distribution": "inertial_signals",
+                    "source": "data\\raw\\uci_har",
+                    "citation": "Anguita et al., A Public Domain Dataset for Human Activity Recognition Using Smartphones, ESANN 2013; UCI archive 240",
+                    "is_synthetic": false,
+                    "is_production_evidence": true,
+                    "real_windows": 10299,
+                    "subjects": 30,
+                    "activities": {
+                        "STANDING": 1906,
+                        "SITTING": 1777,
+                        "LAYING": 1944,
+                        "WALKING": 1722,
+                        "WALKING_DOWNSTAIRS": 1406,
+                        "WALKING_UPSTAIRS": 1544
+                    },
+                    "sample_rate_hz": 50.0,
+                    "window_samples": 128,
+                    "window_seconds": 2.56,
+                    "window_overlap": "50%",
+                    "provides": [
+                        "PeakAcceleration",
+                        "MotionVariance",
+                        "PossibleFall"
+                    ],
+                    "missing": [
+                        "AudioEnergy",
+                        "GPSVelocity"
+                    ],
+                    "caveat": "NEGATIVES ONLY - all six activities are ADLs, so this cannot train a classifier alone, but it is exactly the right corpus for false-positive rate on ordinary activity. Windows are 2.56 s with 50% overlap, not the 20 s the phone scores: PeakAcceleration carries over, MotionVariance is an upper bound. Waist-mounted, which is close to a trouser pocket."
+                },
+                {
+                    "dataset": "shimfall",
+                    "source": "data\\raw\\shimfall",
+                    "citation": "Althobaiti, Katsigiannis, Ramzan, Sensors 20(13) 3777, 2020; Zenodo 3901285; CC-BY-NC-ND-4.0",
+                    "is_synthetic": false,
+                    "is_production_evidence": true,
+                    "real_windows": 525,
+                    "subjects": 35,
+                    "activities": {
+                        "adl_bendingandpickingup": 35,
+                        "adl_jump": 35,
+                        "adl_liedown": 35,
+                        "adl_sittingonchair": 35,
+                        "adl_standingfromchair": 35,
+                        "adl_walk": 35,
+                        "backfall_hard": 35,
+                        "backfall_soft": 35,
+                        "frontfall_hard": 35,
+                        "frontfall_soft": 35,
+                        "leftfall_hard": 35,
+                        "leftfall_soft": 35,
+                        "rightfall_hard": 35,
+                        "rightfall_soft": 35,
+                        "steepfall_hard": 35
+                    },
+                    "sample_rate_hz": 50.0,
+                    "samples_per_event": 101,
+                    "event_duration_s": 2.02,
+                    "provides": [
+                        "PeakAcceleration",
+                        "MotionVariance",
+                        "PossibleFall"
+                    ],
+                    "missing": [
+                        "AudioEnergy",
+                        "GPSVelocity"
+                    ],
+                    "units_calibration": {
+                        "documented_by_depositors": false,
+                        "method": "1 g recovered as the median magnitude of near-static postures (sitting/lying/standing-from-chair)",
+                        "gravity_in_dataset_units": 35.4257,
+                        "static_files_used": 105,
+                        "scale_to_mps2": 0.276823
+                    },
+                    "caveat": "Chest-strapped sensor, staged falls in a lab - not a phone in a pocket during a real incident. Units are INFERRED from static postures, not documented. Events are 2.02 s while the phone scores up to 20 s, so MotionVariance is an upper bound and is NOT device-comparable; PeakAcceleration is."
+                },
+                {
+                    "dataset": "ravdess",
+                    "source": "data\\raw\\ravdess",
+                    "is_synthetic": false,
+                    "is_production_evidence": false,
+                    "real_windows": 82532,
+                    "provides": [
+                        "AudioEnergy"
+                    ],
+                    "missing": [
+                        "PeakAcceleration",
+                        "MotionVariance",
+                        "GPSVelocity",
+                        "PossibleFall"
+                    ],
+                    "caveat": "Studio-recorded acted emotion at close mic distance. Real pocket-muffled audio at unknown distance will sit far lower on the same scale, so this bounds the LOUD end only - it is not a substitute for on-device measurement."
+                }
+            ],
+            "fusion_method": {
+                "audio": "AudioEnergy sampled per-row, with replacement, from RAVDESS clips whose emotion matches the row's label (['05', '06', '07'] = distress for Emergency, all other emotions for Normal). Assumes motion and voice distress are conditionally independent given the label - a modelling assumption, not an observation.",
+                "gps": "GPSVelocity sampled uniformly from (0.0, 3.0) m/s, independent of Activity and of the Emergency label - deliberately non-predictive. An earlier revision keyed it to activity (falls and stationary ADLs at 0 m/s) and taught the model 'moving fast = not an emergency', which would suppress the alert exactly when someone is fleeing at speed - a safety-critical bug (flagged by Aarush, 2026-09-06). Neutralizing it stops that failure mode; it does not add fleeing-detection capability, which needs real GPS+incident captures no corpus here provides.",
+                "random_seed": 42
+            },
+            "caveat": "PeakAcceleration, MotionVariance and PossibleFall are real per-subject motion. AudioEnergy and GPSVelocity are NOT observed jointly with that motion - AudioEnergy is resampled from RAVDESS by label (so it DOES carry a label signal), GPSVelocity is sampled independent of label and activity (so it deliberately carries NONE - see fusion_method.gps). This is a constructed pairing, not a real joint capture, so production_claim_supported will be False for any run on this dataset no matter the score. Use it to TRAIN a model on all five features; use evaluate_real_fpr.py's audio/GPS sweep against real motion-only data for the honest false-positive-rate range."
         },
         "production_claim_supported": false,
         "false_positive_target": 0.05,
         "meets_false_positive_target": null,
-        "training_samples": 24,
-        "test_samples": 6,
+        "split": "subject-level (GroupShuffleSplit)",
+        "split_leaks_across_subjects": false,
+        "training_samples": 8724,
+        "test_samples": 2100,
         "class_distribution": {
-            "0": 15,
-            "1": 15
+            "0": 10509,
+            "1": 315
         },
-        "roc_auc": 1.0,
+        "roc_auc": 0.9718,
         "at_classification_threshold": {
             "threshold": 0.5,
-            "accuracy": 1.0,
+            "accuracy": 0.9943,
             "precision": 1.0,
-            "recall": 1.0,
-            "f1_score": 1.0,
+            "recall": 0.8095,
+            "f1_score": 0.8947,
             "confusion_matrix": [
                 [
-                    3,
+                    2037,
                     0
                 ],
                 [
-                    0,
-                    3
+                    12,
+                    51
                 ]
             ],
             "confusion_matrix_layout": "[[TN, FP], [FN, TP]]",
             "false_positive_rate": 0.0,
-            "false_negative_rate": 0.0,
-            "true_negatives": 3,
+            "false_negative_rate": 0.1905,
+            "true_negatives": 2037,
             "false_positives": 0,
-            "false_negatives": 0,
-            "true_positives": 3
+            "false_negatives": 12,
+            "true_positives": 51
         },
         "at_decision_threshold": {
             "threshold": 0.8,
-            "accuracy": 1.0,
+            "accuracy": 0.9919,
             "precision": 1.0,
-            "recall": 1.0,
-            "f1_score": 1.0,
+            "recall": 0.7302,
+            "f1_score": 0.844,
             "confusion_matrix": [
                 [
-                    3,
+                    2037,
                     0
                 ],
                 [
-                    0,
-                    3
+                    17,
+                    46
                 ]
             ],
             "confusion_matrix_layout": "[[TN, FP], [FN, TP]]",
             "false_positive_rate": 0.0,
-            "false_negative_rate": 0.0,
-            "true_negatives": 3,
+            "false_negative_rate": 0.2698,
+            "true_negatives": 2037,
             "false_positives": 0,
-            "false_negatives": 0,
-            "true_positives": 3
+            "false_negatives": 17,
+            "true_positives": 46
         },
         "threshold_sweep": [
             {
                 "threshold": 0.05,
-                "recall": 1.0,
-                "precision": 1.0,
-                "false_positive_rate": 0.0
+                "recall": 0.9048,
+                "precision": 0.7808,
+                "false_positive_rate": 0.0079
             },
             {
                 "threshold": 0.1,
-                "recall": 1.0,
-                "precision": 1.0,
-                "false_positive_rate": 0.0
+                "recall": 0.8571,
+                "precision": 0.8438,
+                "false_positive_rate": 0.0049
             },
             {
                 "threshold": 0.15,
-                "recall": 1.0,
-                "precision": 1.0,
-                "false_positive_rate": 0.0
+                "recall": 0.8571,
+                "precision": 0.871,
+                "false_positive_rate": 0.0039
             },
             {
                 "threshold": 0.2,
-                "recall": 1.0,
-                "precision": 1.0,
-                "false_positive_rate": 0.0
+                "recall": 0.8413,
+                "precision": 0.9138,
+                "false_positive_rate": 0.0025
             },
             {
                 "threshold": 0.25,
-                "recall": 1.0,
-                "precision": 1.0,
-                "false_positive_rate": 0.0
+                "recall": 0.8413,
+                "precision": 0.9636,
+                "false_positive_rate": 0.001
             },
             {
                 "threshold": 0.3,
-                "recall": 1.0,
-                "precision": 1.0,
-                "false_positive_rate": 0.0
+                "recall": 0.8254,
+                "precision": 0.9811,
+                "false_positive_rate": 0.0005
             },
             {
                 "threshold": 0.35,
-                "recall": 1.0,
-                "precision": 1.0,
-                "false_positive_rate": 0.0
+                "recall": 0.8254,
+                "precision": 0.9811,
+                "false_positive_rate": 0.0005
             },
             {
                 "threshold": 0.4,
-                "recall": 1.0,
-                "precision": 1.0,
-                "false_positive_rate": 0.0
+                "recall": 0.8254,
+                "precision": 0.9811,
+                "false_positive_rate": 0.0005
             },
             {
                 "threshold": 0.45,
-                "recall": 1.0,
+                "recall": 0.8254,
                 "precision": 1.0,
                 "false_positive_rate": 0.0
             },
             {
                 "threshold": 0.5,
-                "recall": 1.0,
+                "recall": 0.8095,
                 "precision": 1.0,
                 "false_positive_rate": 0.0
             },
             {
                 "threshold": 0.55,
-                "recall": 1.0,
+                "recall": 0.8095,
                 "precision": 1.0,
                 "false_positive_rate": 0.0
             },
             {
                 "threshold": 0.6,
-                "recall": 1.0,
+                "recall": 0.8095,
                 "precision": 1.0,
                 "false_positive_rate": 0.0
             },
             {
                 "threshold": 0.65,
-                "recall": 1.0,
+                "recall": 0.7937,
                 "precision": 1.0,
                 "false_positive_rate": 0.0
             },
             {
                 "threshold": 0.7,
-                "recall": 1.0,
+                "recall": 0.7937,
                 "precision": 1.0,
                 "false_positive_rate": 0.0
             },
             {
                 "threshold": 0.75,
-                "recall": 1.0,
+                "recall": 0.7778,
                 "precision": 1.0,
                 "false_positive_rate": 0.0
             },
             {
                 "threshold": 0.8,
-                "recall": 1.0,
+                "recall": 0.7302,
                 "precision": 1.0,
                 "false_positive_rate": 0.0
             },
             {
                 "threshold": 0.85,
-                "recall": 1.0,
+                "recall": 0.7143,
                 "precision": 1.0,
                 "false_positive_rate": 0.0
             },
             {
                 "threshold": 0.9,
-                "recall": 1.0,
+                "recall": 0.6825,
                 "precision": 1.0,
                 "false_positive_rate": 0.0
             },
             {
                 "threshold": 0.95,
-                "recall": 1.0,
+                "recall": 0.619,
                 "precision": 1.0,
                 "false_positive_rate": 0.0
             }
         ],
-        "model_written": false,
-        "accuracy": 1.0,
+        "model_written": true,
+        "accuracy": 0.9943,
         "precision": 1.0,
-        "recall": 1.0,
-        "f1_score": 1.0,
+        "recall": 0.8095,
+        "f1_score": 0.8947,
         "threshold": 0.5
     },
     "SystemStatus": "SUCCESS",

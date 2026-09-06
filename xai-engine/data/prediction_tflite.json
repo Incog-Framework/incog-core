@@ -1,5 +1,5 @@
 {
-    "Prediction": "Emergency",
-    "Confidence": 1.0,
-    "ConfidenceRaw": 0.9999755620956421
+    "Prediction": "Normal",
+    "Confidence": 0.0141,
+    "ConfidenceRaw": 0.014118137769401073
 }

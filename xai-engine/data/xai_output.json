@@ -1,21 +1,21 @@
 {
-    "Prediction": "Emergency",
-    "Confidence": 1.0,
-    "EmergencyStatus": true,
+    "Prediction": "Normal",
+    "Confidence": 0.0141,
+    "EmergencyStatus": false,
     "DecisionThreshold": 0.8,
     "SHAP": {
-        "PeakAcceleration": 0.102758,
-        "MotionVariance": 0.087324,
-        "AudioEnergy": 0.099825,
-        "GPSVelocity": 0.05927,
-        "PossibleFall": 0.05089
+        "PeakAcceleration": 0.284474,
+        "MotionVariance": -0.199545,
+        "AudioEnergy": 0.003026,
+        "GPSVelocity": -0.04655,
+        "PossibleFall": -0.033733
     },
     "LIME": {
-        "MotionVariance > 25.20": 0.280674,
-        "PeakAcceleration > 20.62": 0.261153,
-        "GPSVelocity <= 0.00": 0.218744,
-        "0.40 < AudioEnergy <= 0.75": 0.210507,
-        "0.50 < PossibleFall <= 1.00": 0.193151
+        "PeakAcceleration > 20.62": 0.565401,
+        "MotionVariance > 25.20": -0.160891,
+        "GPSVelocity <= 0.00": -0.086386,
+        "0.50 < PossibleFall <= 1.00": -0.04563,
+        "0.40 < AudioEnergy <= 0.75": -0.01208
     },
     "SessionID": "SESS-DEMO0001",
     "TimestampMs": 1734900000000,
@@ -29,49 +29,45 @@
     "TopContributingFeatures": [
         {
             "Feature": "PeakAcceleration",
-            "Contribution": 0.102758,
+            "Contribution": 0.284474,
             "Direction": "increases_emergency_likelihood",
             "Description": "unusually high acceleration",
             "Value": 24.0967
         },
         {
-            "Feature": "AudioEnergy",
-            "Contribution": 0.099825,
-            "Direction": "increases_emergency_likelihood",
-            "Description": "elevated audio activity",
-            "Value": 0.6561
-        },
-        {
             "Feature": "MotionVariance",
-            "Contribution": 0.087324,
-            "Direction": "increases_emergency_likelihood",
+            "Contribution": -0.199545,
+            "Direction": "decreases_emergency_likelihood",
             "Description": "significant movement variance",
             "Value": 33.5643
         },
         {
             "Feature": "GPSVelocity",
-            "Contribution": 0.05927,
-            "Direction": "increases_emergency_likelihood",
+            "Contribution": -0.04655,
+            "Direction": "decreases_emergency_likelihood",
             "Description": "an abrupt change in movement speed",
             "Value": 0.0
         },
         {
             "Feature": "PossibleFall",
-            "Contribution": 0.05089,
-            "Direction": "increases_emergency_likelihood",
+            "Contribution": -0.033733,
+            "Direction": "decreases_emergency_likelihood",
             "Description": "a possible fall",
             "Value": true
+        },
+        {
+            "Feature": "AudioEnergy",
+            "Contribution": 0.003026,
+            "Direction": "increases_emergency_likelihood",
+            "Description": "elevated audio activity",
+            "Value": 0.6561
         }
     ],
     "Explanation": {
-        "Title": "Emergency Detected",
-        "Message": "An emergency was detected with 100.0% confidence. The system detected signs of unusually high acceleration, elevated audio activity, significant movement variance, an abrupt change in movement speed, and a possible fall.",
+        "Title": "No Emergency Detected",
+        "Message": "No emergency was detected. Some signals pointed that way - unusually high acceleration - but overall confidence reached only 1.4%, below the 80% threshold required to raise an alert.",
         "Reasons": [
-            "unusually high acceleration",
-            "elevated audio activity",
-            "significant movement variance",
-            "an abrupt change in movement speed",
-            "a possible fall"
+            "unusually high acceleration"
         ]
     }
 }

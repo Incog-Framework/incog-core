@@ -1,11 +1,51 @@
 # Real-data evaluation of the deployed model
 
-**Reproduce:**
+> **UPDATE (2026-09-06): retrained a second time to fix a safety-critical GPS
+> defect.** Everything below this banner describes the ORIGINAL model (30
+> synthetic rows) and is kept for the before/after comparison. Full current
+> numbers and method: **MODEL_CARD.md**.
+>
+> **2026-09-05 retrain:** trained on `phase5/dataset_adapters.py:load_fusion()`
+> — 10,824 real UCI HAR + ShimFall motion windows, each paired with a
+> resampled RAVDESS audio value and, at the time, a hand-set GPS-by-activity
+> heuristic that set every fall's `GPSVelocity` to 0. The false-positive fix
+> was real (range dropped from **0.6%-39.8%** to **0.0%-10.3%**, every one of
+> the 12 real activities fired at **0%** at the defensible cell), but Aarush
+> caught a safety-critical side effect: because every fall was labeled
+> GPS=0, the model learned "moving fast ⇒ not an emergency" — **recall
+> collapsed to 0% whenever assumed GPSVelocity >= 1.5 m/s**. That would
+> suppress the alert exactly when someone is fleeing an attacker at speed.
+>
+> **2026-09-06 retrain (current):** `load_fusion()`'s GPS assignment was
+> changed so `GPSVelocity` is now sampled uniformly (0-3 m/s) **independent
+> of Activity and of the Emergency label** — pinned by
+> `phase5/test_dataset_adapters.py:test_fusion_gps_velocity_is_not_correlated_with_the_label`.
+> Recall at GPS=3.0 is now **72%-95%**, not 0%, at every audio level tested.
+> The false-positive range held at **0.0%-5.6%**, so the fix did not reopen
+> the problem the first retrain solved. This does not teach the model to
+> detect fleeing — it only stops the model from actively working against
+> that scenario; see MODEL_CARD.md Limitations for why.
+>
+> The RAVDESS audio validation also closed Level 2 (see
+> `data/audio_validation_report.json`): real distress speech reads
+> `AudioEnergy` median 0.0013, p95 0.085 - far below the 0.55-0.91 the old
+> synthetic data assumed. Aarush's call (2026-09-06): ship the current model
+> with audio near-dead, redefine the scale as a coordinated fast-follow so
+> Python and Kotlin change together.
+
+**Reproduce (the OLD model's numbers, for comparison):**
 ```bash
 python phase5/fetch_datasets.py --dataset uci_har,shimfall
-python phase5/evaluate_real_fpr.py --dataset uci_har,shimfall
+python phase5/evaluate_real_fpr.py --dataset uci_har,shimfall   # now scores the NEW model
 ```
-Raw output: `data/real_evaluation_report.json`.
+Raw output: `data/real_evaluation_report.json` — this file is overwritten by
+whichever model is currently at `data/emergency_model.tflite`, so it now
+reflects the retrained model, not the one this write-up was originally about.
+
+Below is the original (pre-retrain) write-up, unedited, as the historical
+record of why the retrain happened.
+
+---
 
 The model was **not** retrained and `emergency_model.tflite` is **unchanged** —
 it is still byte-identical to the asset `mobile-client` ships. This measures

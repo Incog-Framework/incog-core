@@ -31,6 +31,6 @@
     "possibleFallEncoding": "1.0 / 0.0",
     "possibleFallUsesUnroundedPeak": true,
     "modelFile": "data/emergency_model.tflite",
-    "modelSha256": "9a8d50936e834f47778f7e47f7494fcc25201400eac4f43fc66abe840acbe8da",
+    "modelSha256": "669f4495b28d25ca1e354784a6a0f12523b2fb1a6eaca6114c26753e2e05fd93",
     "modelMustMatchAsset": "mobile-client/app/src/main/assets/emergency_model.tflite"
 }

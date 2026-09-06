@@ -1,16 +1,16 @@
 {
-    "Timestamp": "2026-09-03T01:01:49.194267",
+    "Timestamp": "2026-09-06T18:04:22.948389",
     "TotalTests": 6,
-    "Passed": 6,
-    "Failed": 0,
-    "TestAccuracy": 1.0,
+    "Passed": 3,
+    "Failed": 3,
+    "TestAccuracy": 0.5,
     "Results": [
         {
             "TestCase": "TC01",
             "Name": "Normal condition",
             "Expected": "Normal",
             "Predicted": "Normal",
-            "Confidence": 0.0004,
+            "Confidence": 0.0003,
             "Status": "PASS"
         },
         {
@@ -18,39 +18,39 @@
             "Name": "Normal low-motion condition",
             "Expected": "Normal",
             "Predicted": "Normal",
-            "Confidence": 0.0005,
+            "Confidence": 0.0001,
             "Status": "PASS"
         },
         {
             "TestCase": "TC03",
             "Name": "Emergency fall condition",
             "Expected": "Emergency",
-            "Predicted": "Emergency",
-            "Confidence": 0.9995,
-            "Status": "PASS"
+            "Predicted": "Normal",
+            "Confidence": 0.0,
+            "Status": "FAIL"
         },
         {
             "TestCase": "TC04",
             "Name": "High acceleration emergency",
             "Expected": "Emergency",
-            "Predicted": "Emergency",
-            "Confidence": 1.0,
-            "Status": "PASS"
+            "Predicted": "Normal",
+            "Confidence": 0.0165,
+            "Status": "FAIL"
         },
         {
             "TestCase": "TC05",
             "Name": "Severe emergency condition",
             "Expected": "Emergency",
-            "Predicted": "Emergency",
-            "Confidence": 1.0,
-            "Status": "PASS"
+            "Predicted": "Normal",
+            "Confidence": 0.0465,
+            "Status": "FAIL"
         },
         {
             "TestCase": "TC06",
             "Name": "Normal movement with GPS velocity",
             "Expected": "Normal",
             "Predicted": "Normal",
-            "Confidence": 0.0006,
+            "Confidence": 0.0001,
             "Status": "PASS"
         }
     ]
