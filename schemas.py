@@ -42,6 +42,13 @@ class SOSPayload(BaseModel):
     contact_name: Optional[str] = Field(None, max_length=100)
     contact_phone: Optional[str] = Field(None, max_length=20)
 
+    # Did the device manage to SMS the contact itself, before uploading?
+    # The app sends that SMS over the cellular network, which works where data
+    # does not, so it is the primary path; this backend alert is the fallback
+    # for when the phone is taken, broken, or out of credit. None means an
+    # older client that does not report it.
+    contact_sms_sent: Optional[bool] = None
+
     @field_validator("device_id")
     @classmethod
     def validate_device_id(cls, v: str) -> str:
@@ -51,7 +58,7 @@ class SOSPayload(BaseModel):
             )
         return v
 
-    @field_validator("contact_name", "contact_phone", mode="before")
+    @field_validator("contact_name", "contact_phone", "contact_sms_sent", mode="before")
     @classmethod
     def blank_contact_is_absent(cls, v):
         """

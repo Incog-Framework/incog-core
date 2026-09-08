@@ -239,6 +239,7 @@ class AlertDispatcher:
         message: Optional[str] = None,
         contact_name: Optional[str] = None,
         contact_phone: Optional[str] = None,
+        contact_sms_sent: Optional[bool] = None,
     ):
         """
         Fan one alert out to the server-configured contacts, the webhook, and
@@ -247,6 +248,12 @@ class AlertDispatcher:
         The user's contact is additional to the configured ones, never a
         replacement: whoever monitors the channel still needs to see every
         emergency.
+
+        The device SMSes that contact itself over the cellular network, which
+        reaches them where data does not. This backend path is the redundant
+        one, for when the phone is taken, destroyed or out of credit -- so the
+        alert states whether the device already got through, because that is
+        the difference between "someone is with her" and "call them now".
         """
         # A signal can carry its own contact even when the server has none
         # configured, so that alone is reason enough to dispatch.
@@ -261,8 +268,15 @@ class AlertDispatcher:
         # this line is unredacted -- unlike the logs.
         contact_line = ""
         if contact_phone:
+            if contact_sms_sent is True:
+                delivery = "device already texted them"
+            elif contact_sms_sent is False:
+                delivery = "DEVICE COULD NOT TEXT THEM - CALL THEM"
+            else:
+                delivery = "unknown whether the device texted them"
             contact_line = (
-                f"Trusted contact: {contact_name or 'unnamed'} {contact_phone}\n"
+                f"Trusted contact: {contact_name or 'unnamed'} {contact_phone}"
+                f" ({delivery})\n"
             )
 
         alert_message = message or (
@@ -289,6 +303,7 @@ class AlertDispatcher:
             "maps_url": maps_url,
             "contact_name": contact_name,
             "contact_phone": contact_phone,
+            "contact_sms_sent": contact_sms_sent,
             "message": alert_message,
         }
 
@@ -455,6 +470,7 @@ def trigger_sos(
             alert_type="EMERGENCY",
             contact_name=payload.contact_name,
             contact_phone=payload.contact_phone,
+            contact_sms_sent=payload.contact_sms_sent,
         )
 
         evidence_stored = False

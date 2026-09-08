@@ -121,9 +121,29 @@ existing clients keep working, but it logs a deprecation warning.
   "is_stealth_active": true,
   "encrypted_evidence": "<base64, optional>",
   "contact_name": "Amma",
-  "contact_phone": "+918618065357"
+  "contact_phone": "+918618065357",
+  "contact_sms_sent": true
 }
 ```
+
+### Hybrid dispatch
+
+The trusted contact is alerted by **two independent paths**:
+
+1. **The device texts them directly** via Android `SmsManager`, over the
+   cellular network. This is the primary path — it is free, needs no data
+   connection, and arrives from the user's own number.
+2. **The backend alerts them too**, plus the monitoring channel. This is the
+   redundant path, for when the phone is taken, destroyed, or out of credit.
+
+Neither is skipped when the other succeeds: a duplicate message costs nothing
+next to a missed one.
+
+`contact_sms_sent` reports whether path 1 worked, and the alert says so
+explicitly — `device already texted them`, or
+`DEVICE COULD NOT TEXT THEM - CALL THEM`. That is the difference between
+"someone is already with her" and "a responder needs to phone them now".
+Omitted or `null` from an older client reads as *unknown*, never as failure.
 
 **`contact_name` / `contact_phone` are optional** — the owner's own trusted
 contact, from the app's setup screen. When `contact_phone` is present the alert

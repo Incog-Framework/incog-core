@@ -284,3 +284,88 @@ def test_dispatch_thread_swallows_failures(monkeypatch):
 
     monkeypatch.setattr(d, "dispatch_alert", boom)
     d.dispatch_alert_async(device_id="x", latitude=0.0, longitude=0.0)  # must not raise
+
+
+# --------------------------------------------------------------------------
+# Did the device's own SMS get through? (hybrid dispatch)
+# --------------------------------------------------------------------------
+def test_contact_sms_sent_is_optional():
+    """Older clients do not report it; that must read as 'unknown', not False."""
+    assert SOSPayload(**payload()).contact_sms_sent is None
+
+
+@pytest.mark.parametrize("value", ["", "  "])
+def test_blank_contact_sms_sent_is_absent(value):
+    assert SOSPayload(**payload(contact_sms_sent=value)).contact_sms_sent is None
+
+
+@pytest.mark.parametrize("raw,expected", [(True, True), (False, False)])
+def test_contact_sms_sent_round_trips(raw, expected):
+    assert SOSPayload(**payload(contact_sms_sent=raw)).contact_sms_sent is expected
+
+
+def alert_body(monkeypatch, **kwargs):
+    d = build_dispatcher(monkeypatch, contacts="+911111111111")
+    d.dispatch_alert(
+        device_id="demo-device-01", latitude=12.9412, longitude=77.5652, **kwargs
+    )
+    return d.twilio_client.sent[0]["body"]
+
+
+def test_alert_says_the_device_already_texted_them(monkeypatch):
+    body = alert_body(
+        monkeypatch, contact_phone="+918618065357", contact_sms_sent=True
+    )
+    assert "device already texted them" in body
+
+
+def test_alert_shouts_when_the_device_could_not_text_them(monkeypatch):
+    """
+    This is the case a responder must act on: the primary path failed, so
+    somebody has to phone the contact themselves.
+    """
+    body = alert_body(
+        monkeypatch, contact_phone="+918618065357", contact_sms_sent=False
+    )
+    assert "DEVICE COULD NOT TEXT THEM - CALL THEM" in body
+
+
+def test_alert_says_unknown_for_older_clients(monkeypatch):
+    body = alert_body(monkeypatch, contact_phone="+918618065357")
+    assert "unknown whether the device texted them" in body
+
+
+def test_no_delivery_note_without_a_contact(monkeypatch):
+    body = alert_body(monkeypatch, contact_sms_sent=True)
+    assert "texted them" not in body
+    assert "Trusted contact" not in body
+
+
+def test_webhook_payload_reports_device_sms_status(monkeypatch):
+    d = build_dispatcher(monkeypatch, contacts="", webhook=True)
+    captured = {}
+    monkeypatch.setattr(d, "_send_webhook", lambda p: captured.update(p) or True)
+    d.dispatch_alert(
+        device_id="demo-device-01",
+        latitude=12.9412,
+        longitude=77.5652,
+        contact_phone="+918618065357",
+        contact_sms_sent=False,
+    )
+    assert captured["contact_sms_sent"] is False
+
+
+def test_backend_still_alerts_the_contact_even_if_the_device_already_did(monkeypatch):
+    """
+    Redundancy is the point: a duplicate message is a trivial cost next to a
+    missed one, so the backend does not skip its own send.
+    """
+    d = build_dispatcher(monkeypatch, contacts="")
+    d.dispatch_alert(
+        device_id="demo-device-01",
+        latitude=12.9412,
+        longitude=77.5652,
+        contact_phone="+918618065357",
+        contact_sms_sent=True,
+    )
+    assert recipients_of(d) == ["+918618065357"]
