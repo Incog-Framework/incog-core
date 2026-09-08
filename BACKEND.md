@@ -126,6 +126,21 @@ existing clients keep working, but it logs a deprecation warning.
 }
 ```
 
+### Whose contact gets alerted
+
+Two different things, easily confused:
+
+- **`contact_phone`** — carried on each signal, from that user's own setup
+  screen. Different for every user. Nothing about it is shared between users,
+  and it is not stored: it arrives with the signal, is used, and is discarded.
+- **`EMERGENCY_CONTACTS`** — a single server-wide list that receives **every**
+  user's alert, regardless of who they are.
+
+`EMERGENCY_CONTACTS` should be **empty in production**. It is a testing
+convenience; leaving a real number in it means one person receives every
+emergency from every user, which is both noisy and a privacy problem. Leaving
+it empty is safe — the webhook and the per-signal contact still fire.
+
 ### Hybrid dispatch
 
 The trusted contact is alerted by **two independent paths**:
@@ -253,7 +268,7 @@ still needs agreeing between us.
 | `TWILIO_ACCOUNT_SID` | if Twilio | |
 | `TWILIO_AUTH_TOKEN` | if Twilio | |
 | `TWILIO_PHONE_NUMBER` | if Twilio | Sender. For the WhatsApp sandbox this is Twilio's shared number |
-| `EMERGENCY_CONTACTS` | if Twilio | Comma-separated, with country code. No `whatsapp:` prefix needed |
+| `EMERGENCY_CONTACTS` | no | **Normally empty.** A shared catch-all that receives *every* user's alert — see below |
 
 ### SMS vs WhatsApp
 

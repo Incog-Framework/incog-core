@@ -355,6 +355,56 @@ def test_webhook_payload_reports_device_sms_status(monkeypatch):
     assert captured["contact_sms_sent"] is False
 
 
+def test_no_server_contacts_is_the_production_config(monkeypatch):
+    """
+    EMERGENCY_CONTACTS is empty in production: each user's alert goes to their
+    own contact, not to a shared number. Nobody should receive somebody else's
+    emergency.
+    """
+    d = build_dispatcher(monkeypatch, contacts="", webhook=True)
+    fired = []
+    monkeypatch.setattr(d, "_send_webhook", lambda p: fired.append(p) or True)
+
+    d.dispatch_alert(
+        device_id="user-a",
+        latitude=12.9412,
+        longitude=77.5652,
+        contact_name="A's mum",
+        contact_phone="+911111111111",
+    )
+    d.dispatch_alert(
+        device_id="user-b",
+        latitude=12.9500,
+        longitude=77.5700,
+        contact_name="B's brother",
+        contact_phone="+922222222222",
+    )
+
+    # Each user's contact got their own alert, and only their own.
+    assert recipients_of(d) == ["+911111111111", "+922222222222"]
+    assert "+922222222222" not in fired[0]["content"]
+    assert "+911111111111" not in fired[1]["content"]
+    # The monitoring channel still saw both.
+    assert len(fired) == 2
+
+
+def test_alert_still_reaches_the_channel_with_no_contacts_anywhere(monkeypatch):
+    """
+    An older client sends no contact, and the server now configures none. The
+    monitoring webhook must still fire, or that emergency would vanish.
+    """
+    d = build_dispatcher(monkeypatch, contacts="", webhook=True)
+    fired = []
+    monkeypatch.setattr(d, "_send_webhook", lambda p: fired.append(p) or True)
+
+    d.dispatch_alert(
+        device_id="legacy-device", latitude=12.9412, longitude=77.5652
+    )
+
+    assert len(fired) == 1
+    assert recipients_of(d) == []
+
+
 def test_backend_still_alerts_the_contact_even_if_the_device_already_did(monkeypatch):
     """
     Redundancy is the point: a duplicate message is a trivial cost next to a
