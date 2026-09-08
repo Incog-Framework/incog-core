@@ -119,9 +119,29 @@ existing clients keep working, but it logs a deprecation warning.
   "latitude": 12.9412,
   "longitude": 77.5652,
   "is_stealth_active": true,
-  "encrypted_evidence": "<base64, optional>"
+  "encrypted_evidence": "<base64, optional>",
+  "contact_name": "Amma",
+  "contact_phone": "+918618065357"
 }
 ```
+
+**`contact_name` / `contact_phone` are optional** — the owner's own trusted
+contact, from the app's setup screen. When `contact_phone` is present the alert
+goes to that number **in addition to** the server-configured
+`EMERGENCY_CONTACTS`, never instead of them, and the alert body gains a
+`Trusted contact: <name> <phone>` line so whoever monitors the channel can
+reach them.
+
+- Omit them, or send `""`, and the signal is handled exactly as before. The
+  Android client defaults these to empty strings, so `""` must mean *not
+  configured* rather than invalid — otherwise a user who skipped setup would
+  have every SOS rejected.
+- `contact_phone` accepts `+` and 7–15 digits. Spaces, dashes, brackets, dots
+  and slashes are stripped before validation, so a number typed as
+  `+91 86180 65357` is accepted and normalised. Anything else is a 422.
+- The number is **never logged in the clear** — log lines show only the last
+  three digits. It reaches Twilio and the webhook body in full, because that is
+  the point, but it is **not persisted to the database**.
 
 ```json
 {

@@ -61,6 +61,20 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def redact_phone(phone: Optional[str]) -> str:
+    """
+    Mask a phone number for logging, keeping only the last 3 digits.
+
+    A trusted contact's number is the personal data of someone who never
+    installed this app, so it must not reach the logs in the clear. The tail is
+    kept so a number can still be matched against a report of a missed alert.
+    """
+    if not phone:
+        return "(none)"
+    tail = phone[-3:]
+    return f"{'*' * max(len(phone) - 3, 0)}{tail}"
+
+
 # --------------------------------------------------------------------------
 # Configuration
 # --------------------------------------------------------------------------
@@ -186,10 +200,12 @@ class AlertDispatcher:
                 from_=self._address(self.twilio_phone),
                 to=self._address(phone_number),
             )
-            logger.info(f"Alert {self.channel} sent to {phone_number}")
+            logger.info(f"Alert {self.channel} sent to {redact_phone(phone_number)}")
             return True
         except Exception as exc:
-            logger.error(f"Alert {self.channel} to {phone_number} failed: {exc}")
+            logger.error(
+                f"Alert {self.channel} to {redact_phone(phone_number)} failed: {exc}"
+            )
             return False
 
     def _send_webhook(self, payload: dict) -> bool:
@@ -221,19 +237,40 @@ class AlertDispatcher:
         longitude: float,
         alert_type: str = "EMERGENCY",
         message: Optional[str] = None,
+        contact_name: Optional[str] = None,
+        contact_phone: Optional[str] = None,
     ):
-        if not self.emergency_contacts and not self.enable_webhook:
+        """
+        Fan one alert out to the server-configured contacts, the webhook, and
+        the user's own trusted contact when the signal carried one.
+
+        The user's contact is additional to the configured ones, never a
+        replacement: whoever monitors the channel still needs to see every
+        emergency.
+        """
+        # A signal can carry its own contact even when the server has none
+        # configured, so that alone is reason enough to dispatch.
+        if not self.emergency_contacts and not self.enable_webhook and not contact_phone:
             logger.info("No dispatch channels configured; alert not sent")
             return
 
         timestamp = _utcnow().isoformat()
         maps_url = f"https://maps.google.com/?q={latitude},{longitude}"
 
+        # Responders monitoring the channel need the real number to call, so
+        # this line is unredacted -- unlike the logs.
+        contact_line = ""
+        if contact_phone:
+            contact_line = (
+                f"Trusted contact: {contact_name or 'unnamed'} {contact_phone}\n"
+            )
+
         alert_message = message or (
             f"[Incog] {alert_type}\n"
             f"User: {device_id}\n"
             f"Time: {timestamp} UTC\n"
             f"Location: {latitude:.6f}, {longitude:.6f}\n"
+            f"{contact_line}"
             f"Map: {maps_url}"
         )
 
@@ -250,10 +287,24 @@ class AlertDispatcher:
             "latitude": latitude,
             "longitude": longitude,
             "maps_url": maps_url,
+            "contact_name": contact_name,
+            "contact_phone": contact_phone,
             "message": alert_message,
         }
 
-        for contact in self.emergency_contacts:
+        # Dedupe so a user whose contact is also a server contact is not texted
+        # twice about the same emergency.
+        recipients = list(self.emergency_contacts)
+        if contact_phone and contact_phone not in recipients:
+            recipients.append(contact_phone)
+            logger.info(
+                f"Alert includes the signal's trusted contact "
+                f"{redact_phone(contact_phone)}"
+            )
+
+        # _send_message never raises, so one unreachable recipient cannot stop
+        # the others or the webhook.
+        for contact in recipients:
             self._send_message(contact, alert_message)
 
         if self.enable_webhook:
@@ -261,9 +312,16 @@ class AlertDispatcher:
 
     def dispatch_alert_async(self, **kwargs):
         """Dispatch off the request path so alerting never delays the response."""
-        threading.Thread(
-            target=self.dispatch_alert, kwargs=kwargs, daemon=True
-        ).start()
+
+        def run():
+            try:
+                self.dispatch_alert(**kwargs)
+            except Exception as exc:
+                # Nothing is watching this thread's result, so an unexpected
+                # failure here would otherwise vanish without a trace.
+                logger.error(f"Alert dispatch thread failed: {exc}")
+
+        threading.Thread(target=run, daemon=True).start()
 
 
 dispatcher = AlertDispatcher()
@@ -395,6 +453,8 @@ def trigger_sos(
             latitude=payload.latitude,
             longitude=payload.longitude,
             alert_type="EMERGENCY",
+            contact_name=payload.contact_name,
+            contact_phone=payload.contact_phone,
         )
 
         evidence_stored = False

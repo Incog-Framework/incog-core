@@ -5,6 +5,7 @@ Kept separate from main.py so validation rules can be unit-tested without
 standing up Postgres/PostGIS.
 """
 
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -13,6 +14,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 # Device identifiers come from the Android client and end up in log lines and
 # SMS bodies, so keep them to a conservative character set.
 _ALLOWED_DEVICE_ID_EXTRA = {"-", "_"}
+
+# E.164-ish: optional '+' then 7-15 digits, checked after separators are removed.
+_PHONE_RE = re.compile(r"^\+?[0-9]{7,15}$")
+
+# Humans type numbers with these; strip them rather than 422 a valid number.
+_PHONE_SEPARATORS = " \t-()./"
 
 
 class SOSPayload(BaseModel):
@@ -29,6 +36,12 @@ class SOSPayload(BaseModel):
     # Base64 of [12-byte IV][ciphertext||16-byte GCM tag]; see evidence_crypto.
     encrypted_evidence: Optional[str] = None
 
+    # The owner's own trusted contact, configured in the app's setup screen.
+    # Both optional: older clients omit them, and a user may skip setup, so a
+    # signal without a contact must still be accepted.
+    contact_name: Optional[str] = Field(None, max_length=100)
+    contact_phone: Optional[str] = Field(None, max_length=20)
+
     @field_validator("device_id")
     @classmethod
     def validate_device_id(cls, v: str) -> str:
@@ -37,6 +50,46 @@ class SOSPayload(BaseModel):
                 "device_id must contain only letters, digits, hyphens or underscores"
             )
         return v
+
+    @field_validator("contact_name", "contact_phone", mode="before")
+    @classmethod
+    def blank_contact_is_absent(cls, v):
+        """
+        Treat "" and whitespace as "not configured" rather than invalid.
+
+        The Android client stores these as empty strings by default, so a user
+        who skipped setup would otherwise send contact_phone="" and have every
+        SOS rejected with a 422. Silently dropping the emergency signal of
+        someone who never filled in the setup screen is the worst possible
+        failure mode here.
+        """
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    @field_validator("contact_name")
+    @classmethod
+    def tidy_contact_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        # Collapse newlines/runs of whitespace: this goes into SMS and Discord
+        # bodies, where a stray newline would break the message layout.
+        return " ".join(v.split())
+
+    @field_validator("contact_phone")
+    @classmethod
+    def validate_contact_phone(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        compact = v
+        for separator in _PHONE_SEPARATORS:
+            compact = compact.replace(separator, "")
+        if not _PHONE_RE.match(compact):
+            raise ValueError(
+                "contact_phone must be 7-15 digits, optionally prefixed with '+'"
+            )
+        # Store the normalised form -- it is what gets handed to Twilio.
+        return compact
 
 
 class SOSResponse(BaseModel):

@@ -184,6 +184,80 @@ def test_client_reported_stealth_flag_is_stored_verbatim(client, session):
 
 
 # --------------------------------------------------------------------------
+# Trusted contact carried on the signal
+# --------------------------------------------------------------------------
+def test_signal_with_a_trusted_contact_is_accepted(client):
+    response = client.post(
+        "/api/v1/sos",
+        json=sos_body(contact_name="Amma", contact_phone="+91 86180 65357"),
+        headers={"X-Incog-Key": API_KEY},
+    )
+    assert response.status_code == 200
+    dispatched = client.dispatched[0]
+    assert dispatched["contact_name"] == "Amma"
+    # Normalised on the way through, ready to hand to Twilio.
+    assert dispatched["contact_phone"] == "+918618065357"
+
+
+def test_signal_without_a_contact_behaves_as_before(client):
+    """Back-compat: older clients omit the fields entirely."""
+    response = client.post(
+        "/api/v1/sos", json=sos_body(), headers={"X-Incog-Key": API_KEY}
+    )
+    assert response.status_code == 200
+    dispatched = client.dispatched[0]
+    assert dispatched["contact_name"] is None
+    assert dispatched["contact_phone"] is None
+
+
+def test_empty_contact_fields_do_not_reject_the_signal(client):
+    """
+    The app stores these as "" by default, so a user who skipped setup sends
+    empty strings. Their SOS must still go through.
+    """
+    response = client.post(
+        "/api/v1/sos",
+        json=sos_body(contact_name="", contact_phone=""),
+        headers={"X-Incog-Key": API_KEY},
+    )
+    assert response.status_code == 200
+    assert client.dispatched[0]["contact_phone"] is None
+
+
+@pytest.mark.parametrize("bad_phone", ["not-a-phone", "12345", "555-CALL-NOW", "+"])
+def test_invalid_contact_phone_returns_422(client, bad_phone):
+    response = client.post(
+        "/api/v1/sos",
+        json=sos_body(contact_phone=bad_phone),
+        headers={"X-Incog-Key": API_KEY},
+    )
+    assert response.status_code == 422
+
+
+def test_a_rejected_contact_does_not_store_a_signal(client, session):
+    """422 is a validation failure, so nothing should have been written."""
+    client.post(
+        "/api/v1/sos",
+        json=sos_body(contact_phone="not-a-phone"),
+        headers={"X-Incog-Key": API_KEY},
+    )
+    assert session.added == []
+    assert client.dispatched == []
+
+
+def test_contact_is_not_persisted_to_the_database(client, session):
+    """It is PII and the alert path is the only thing that needs it."""
+    client.post(
+        "/api/v1/sos",
+        json=sos_body(contact_name="Amma", contact_phone="+918618065357"),
+        headers={"X-Incog-Key": API_KEY},
+    )
+    signal = session.added[0]
+    assert not hasattr(signal, "contact_phone")
+    assert not hasattr(signal, "contact_name")
+
+
+# --------------------------------------------------------------------------
 # Evidence
 # --------------------------------------------------------------------------
 def evidence_blob(**overrides):
