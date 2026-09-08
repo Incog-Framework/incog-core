@@ -23,6 +23,8 @@ import com.incog.incogsecuritycore.GPSData
 import com.incog.incogsecuritycore.SecurityOrchestrator
 import com.incog.mobileclient.ai.AiResult
 import com.incog.mobileclient.ai.EmergencyClassifier
+import com.incog.mobileclient.alert.ContactAlerter
+import com.incog.mobileclient.config.IncogConfig
 import com.incog.mobileclient.handoff.SensorPacket
 import com.incog.mobileclient.network.EvidenceUploader
 import com.incog.mobileclient.sensors.AudioBufferCollector
@@ -278,7 +280,32 @@ class GhostStateService : Service() {
                 return@launch
             }
             val blobBase64 = Base64.encodeToString(pipeline.encryptedBlob, Base64.NO_WRAP)
-            val ok = EvidenceUploader.upload(deviceId, latitude, longitude, blobBase64)
+
+            // Hybrid dispatch: the phone texts the trusted contact itself (PRIMARY path), then
+            // reports the result to the backend (REDUNDANT path). Read IncogConfig now, not at
+            // service start, so a contact edited mid-session is honoured. SMS goes FIRST because it
+            // is time-critical and must not queue behind the free-tier backend's cold start.
+            val contact = IncogConfig(this@GhostStateService).load()
+            val smsSent = ContactAlerter.send(
+                context = this@GhostStateService,
+                contactPhone = contact.contactPhone,
+                senderLabel = contact.contactName.ifBlank { deviceId },
+                latitude = latitude,
+                longitude = longitude
+            )
+            // null (not false) when we never tried — no number configured; false means tried+failed.
+            val smsStatus = if (contact.contactPhone.isBlank()) null else smsSent
+            Log.i(TAG, "Contact SMS ${if (contact.contactPhone.isBlank()) "skipped (no contact)" else if (smsSent) "sent" else "FAILED"}.")
+
+            val ok = EvidenceUploader.upload(
+                deviceId = deviceId,
+                latitude = latitude,
+                longitude = longitude,
+                encryptedEvidenceBase64 = blobBase64,
+                contactName = contact.contactName,
+                contactPhone = contact.contactPhone,
+                contactSmsSent = smsStatus
+            )
             Log.i(TAG, "Evidence upload ${if (ok) "succeeded" else "FAILED"} for ${result.sessionId}")
         }
     }

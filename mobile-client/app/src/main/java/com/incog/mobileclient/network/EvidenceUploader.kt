@@ -32,15 +32,17 @@ object EvidenceUploader {
         latitude: Double,
         longitude: Double,
         encryptedEvidenceBase64: String,
-        isStealthActive: Boolean = true
+        isStealthActive: Boolean = true,
+        contactName: String = "",
+        contactPhone: String = "",
+        contactSmsSent: Boolean? = null
     ): Boolean {
-        val body = JSONObject()
-            .put("device_id", deviceId)
-            .put("latitude", latitude)
-            .put("longitude", longitude)
-            .put("is_stealth_active", isStealthActive)
-            .put("encrypted_evidence", encryptedEvidenceBase64)
-            .toString()
+        val body = JSONObject(
+            buildBody(
+                deviceId, latitude, longitude, encryptedEvidenceBase64,
+                isStealthActive, contactName, contactPhone, contactSmsSent
+            )
+        ).toString()
 
         var conn: HttpURLConnection? = null
         return try {
@@ -68,5 +70,32 @@ object EvidenceUploader {
         } finally {
             conn?.disconnect()
         }
+    }
+
+    /**
+     * Builds the request body as an ordered map (pure + unit-testable; [upload] wraps it in a
+     * JSONObject). `contact_name`/`contact_phone` are always sent — the backend treats blank as
+     * "not configured". `contact_sms_sent` is OMITTED when null: per the backend contract, null =
+     * "we didn't try", whereas false = "we tried and failed" (which makes the responder channel
+     * shout CALL THEM), so the two must not be conflated.
+     */
+    internal fun buildBody(
+        deviceId: String,
+        latitude: Double,
+        longitude: Double,
+        encryptedEvidenceBase64: String,
+        isStealthActive: Boolean,
+        contactName: String,
+        contactPhone: String,
+        contactSmsSent: Boolean?
+    ): Map<String, Any?> = buildMap {
+        put("device_id", deviceId)
+        put("latitude", latitude)
+        put("longitude", longitude)
+        put("is_stealth_active", isStealthActive)
+        put("encrypted_evidence", encryptedEvidenceBase64)
+        put("contact_name", contactName)
+        put("contact_phone", contactPhone)
+        if (contactSmsSent != null) put("contact_sms_sent", contactSmsSent)
     }
 }
