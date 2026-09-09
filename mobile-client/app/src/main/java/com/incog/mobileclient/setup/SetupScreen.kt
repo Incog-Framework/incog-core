@@ -18,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,6 +27,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -64,6 +66,7 @@ fun SetupScreen(
     var unlockCode by remember { mutableStateOf(initial.codes.unlock) }
     var standDownCode by remember { mutableStateOf(initial.codes.standDown) }
     var settingsCode by remember { mutableStateOf(initial.codes.settings) }
+    var captureMode by remember { mutableStateOf(initial.captureMode) }
     var error by remember { mutableStateOf<String?>(null) }
     val focusManager = LocalFocusManager.current
 
@@ -138,6 +141,23 @@ fun SetupScreen(
         CodeField("Stand-down code — stops an active session", standDownCode) { standDownCode = it }
         CodeField("Settings code — reopens this screen", settingsCode) { settingsCode = it }
 
+        SectionLabel("Developer")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Capture mode", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "Save each session's sensor stream to a file for model-training captures. " +
+                        "Leave off for normal use.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(checked = captureMode, onCheckedChange = { captureMode = it })
+        }
+
         if (error != null) {
             Text(
                 text = error!!,
@@ -168,6 +188,7 @@ fun SetupScreen(
                                     settings = settingsCode.trim(),
                                 ),
                                 setupComplete = true,
+                                captureMode = captureMode,
                             )
                         )
                     }

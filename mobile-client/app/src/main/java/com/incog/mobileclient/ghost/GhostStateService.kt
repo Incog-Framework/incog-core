@@ -35,6 +35,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.File
 import java.util.UUID
 
 /**
@@ -67,6 +70,11 @@ class GhostStateService : Service() {
     // Phase 4-6 on-device AI (Decision 2). Fires the Phase 7 handoff once per session.
     private var classifier: EmergencyClassifier? = null
     private var emergencyHandled = false
+
+    // Non-null only while capture mode is on: accumulates this session's packets, flushed to a
+    // JSON file on stand-down (model-training data collection — see CAPTURE_PROTOCOL.md). Off by
+    // default; the production app persists nothing to disk.
+    private var captureBuffer: MutableList<SensorPacket>? = null
 
     // Phase 7-11 handoff runs off the main thread and must outlive a single snapshot tick.
     private val emergencyScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -127,13 +135,17 @@ class GhostStateService : Service() {
             null
         }
 
+        val capturing = IncogConfig(this).load().captureMode
+        captureBuffer = if (capturing) mutableListOf() else null
+
         startSnapshotLogging()
-        Log.i(TAG, "Ghost State ACTIVATED — SessionID=$sessionId (mic=$micStarted, gps=$gpsStarted, ai=${classifier != null})")
+        Log.i(TAG, "Ghost State ACTIVATED — SessionID=$sessionId (mic=$micStarted, gps=$gpsStarted, ai=${classifier != null}, capture=$capturing)")
     }
 
     private fun stopSession() {
         Log.i(TAG, "Ghost State DEACTIVATED — SessionID=$currentSessionId")
         stopSnapshotLogging()
+        flushCapture(currentSessionId)
         sensorCollector?.stop(); sensorCollector = null
         locationCollector?.stop(); locationCollector = null
         audioCollector?.stop(); audioCollector = null
@@ -143,6 +155,25 @@ class GhostStateService : Service() {
         currentSessionId = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    /**
+     * Writes this session's accumulated packets to one JSON file (one run = one file, per the
+     * capture protocol). No-op unless capture mode was on and packets were collected. Files land in
+     * the app's external files dir so they can be pulled with `adb pull` without root.
+     */
+    private fun flushCapture(sessionId: String?) {
+        val packets = captureBuffer ?: return
+        captureBuffer = null
+        if (packets.isEmpty() || sessionId == null) return
+        try {
+            val dir = File(getExternalFilesDir(null), CAPTURE_DIR).apply { mkdirs() }
+            val file = File(dir, "capture-$sessionId-${packets.first().timestampMs}.json")
+            file.writeText(captureJson.encodeToString(packets))
+            Log.i(TAG, "Capture saved: ${file.absolutePath} (${packets.size} packets)")
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to write capture file.", t)
+        }
     }
 
     private fun enterForeground() {
@@ -209,6 +240,7 @@ class GhostStateService : Service() {
                 "audioMs=${packet.audioBufferedMs} accelN=${packet.accelSamples.size} " +
                 "gyroN=${packet.gyroSamples.size}"
         )
+        captureBuffer?.add(packet)
         runInference(packet)
     }
 
@@ -350,6 +382,11 @@ class GhostStateService : Service() {
         private const val CHANNEL_ID = "general_background"
         private const val NOTIFICATION_ID = 1001
         private const val SNAPSHOT_INTERVAL_MS = 2000L
+
+        // Capture-mode output (data collection). Pretty-printed for easy inspection; default field
+        // names (no @SerialName) so xai-engine's SensorPacket loader reads it directly.
+        private const val CAPTURE_DIR = "captures"
+        private val captureJson = Json { prettyPrint = true }
 
         const val ACTION_STOP = "com.incog.mobileclient.ghost.action.STOP"
 

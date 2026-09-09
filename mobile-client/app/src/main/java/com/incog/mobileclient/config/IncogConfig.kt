@@ -34,6 +34,12 @@ data class IncogSettings(
     val codes: SecretCodes = SecretCodes(),
     /** False until the owner completes first-run setup; drives whether setup is shown on launch. */
     val setupComplete: Boolean = false,
+    /**
+     * Developer/data-collection mode: when true, each Ghost State session writes its SensorPacket
+     * stream to a JSON file on disk (for model-training captures). OFF by default — the production
+     * app deliberately persists nothing; this is opt-in tooling, not a shipping feature.
+     */
+    val captureMode: Boolean = false,
 )
 
 /**
@@ -61,6 +67,7 @@ class IncogConfig(context: Context) {
             settings = prefs.getString(KEY_SETTINGS, DEFAULT.settings).orEmpty().ifBlank { DEFAULT.settings },
         ),
         setupComplete = prefs.getBoolean(KEY_SETUP_COMPLETE, false),
+        captureMode = prefs.getBoolean(KEY_CAPTURE_MODE, false),
     )
 
     private fun loadContacts(): List<Contact> {
@@ -95,6 +102,7 @@ class IncogConfig(context: Context) {
             .putString(KEY_STANDDOWN, settings.codes.standDown.trim())
             .putString(KEY_SETTINGS, settings.codes.settings.trim())
             .putBoolean(KEY_SETUP_COMPLETE, true)
+            .putBoolean(KEY_CAPTURE_MODE, settings.captureMode)
             // Drop the legacy single-contact keys now that we own an indexed list.
             .remove(LEGACY_KEY_NAME)
             .remove(LEGACY_KEY_PHONE)
@@ -127,6 +135,7 @@ class IncogConfig(context: Context) {
         private const val KEY_STANDDOWN = "code_standdown"
         private const val KEY_SETTINGS = "code_settings"
         private const val KEY_SETUP_COMPLETE = "setup_complete"
+        private const val KEY_CAPTURE_MODE = "capture_mode"
         private val DEFAULT = SecretCodes()
     }
 }
