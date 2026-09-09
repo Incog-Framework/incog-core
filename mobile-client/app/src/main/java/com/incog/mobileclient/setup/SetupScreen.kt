@@ -60,6 +60,7 @@ fun SetupScreen(
             start.forEach { add(ContactRow(it.name, it.phone)) }
         }
     }
+    var ownerName by remember { mutableStateOf(initial.ownerName) }
     var unlockCode by remember { mutableStateOf(initial.codes.unlock) }
     var standDownCode by remember { mutableStateOf(initial.codes.standDown) }
     var settingsCode by remember { mutableStateOf(initial.codes.settings) }
@@ -83,6 +84,16 @@ fun SetupScreen(
             text = "Add the people to alert in an emergency and choose your private codes. Every " +
                 "contact below is texted your location when a trigger fires.",
             style = MaterialTheme.typography.bodyMedium,
+        )
+
+        SectionLabel("Your details")
+        OutlinedTextField(
+            value = ownerName,
+            onValueChange = { ownerName = it },
+            label = { Text("Your name") },
+            supportingText = { Text("Shown to your contacts: \"<name> may be in danger\"") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
         )
 
         SectionLabel("Trusted contacts")
@@ -149,6 +160,7 @@ fun SetupScreen(
                     } else {
                         onSave(
                             IncogSettings(
+                                ownerName = ownerName.trim(),
                                 contacts = contacts.filter { it.phone.isNotBlank() },
                                 codes = SecretCodes(
                                     unlock = unlockCode.trim(),

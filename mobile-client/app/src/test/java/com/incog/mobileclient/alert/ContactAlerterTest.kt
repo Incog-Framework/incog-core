@@ -19,13 +19,19 @@ class ContactAlerterTest {
     }
 
     @Test
-    fun `message carries the emergency marker, coordinates and a maps link`() {
+    fun `message names the owner and carries coordinates and a maps link`() {
         val msg = ContactAlerter.buildMessage("Aarush", 12.9459, 77.5999)
         assertTrue(msg.contains("INCOG EMERGENCY"))
-        assertTrue(msg.contains("Aarush"))
+        assertTrue(msg.contains("Aarush may be in danger"))
         assertTrue(msg.contains("12.945900"))
         assertTrue(msg.contains("77.599900"))
         assertTrue(msg.contains("https://maps.google.com/?q=12.9459,77.5999"))
+    }
+
+    @Test
+    fun `blank owner name falls back to a generic phrase, not a device id`() {
+        val msg = ContactAlerter.buildMessage("", 12.9459, 77.5999)
+        assertTrue(msg.contains("Someone who added you as their emergency contact"))
     }
 
     @Test

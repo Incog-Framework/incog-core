@@ -27,6 +27,8 @@ data class Contact(
 
 /** Everything the owner configures once, persisted across launches. */
 data class IncogSettings(
+    /** The app owner's own name, shown to contacts in the alert ("<name> may be in danger"). */
+    val ownerName: String = "",
     /** The user's trusted contacts (0..[IncogConfig.MAX_CONTACTS]); all are texted on an emergency. */
     val contacts: List<Contact> = emptyList(),
     val codes: SecretCodes = SecretCodes(),
@@ -51,6 +53,7 @@ class IncogConfig(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun load(): IncogSettings = IncogSettings(
+        ownerName = prefs.getString(KEY_OWNER_NAME, "").orEmpty(),
         contacts = loadContacts(),
         codes = SecretCodes(
             unlock = prefs.getString(KEY_UNLOCK, DEFAULT.unlock).orEmpty().ifBlank { DEFAULT.unlock },
@@ -87,6 +90,7 @@ class IncogConfig(context: Context) {
             .take(MAX_CONTACTS)
 
         val editor = prefs.edit()
+            .putString(KEY_OWNER_NAME, settings.ownerName.trim())
             .putString(KEY_UNLOCK, settings.codes.unlock.trim())
             .putString(KEY_STANDDOWN, settings.codes.standDown.trim())
             .putString(KEY_SETTINGS, settings.codes.settings.trim())
@@ -113,6 +117,7 @@ class IncogConfig(context: Context) {
         const val MAX_CONTACTS = 5
 
         private const val PREFS_NAME = "incog_config"
+        private const val KEY_OWNER_NAME = "owner_name"
         private const val KEY_CONTACT_COUNT = "contact_count"
         private const val KEY_CONTACT_NAME_PREFIX = "contact_name_"
         private const val KEY_CONTACT_PHONE_PREFIX = "contact_phone_"

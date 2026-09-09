@@ -31,12 +31,12 @@ object ContactAlerter {
     fun sendAll(
         context: Context,
         contacts: List<Contact>,
-        senderLabel: String,
+        ownerName: String,
         latitude: Double,
         longitude: Double
     ): List<ContactSms> = contacts
         .filter { it.phone.isNotBlank() }
-        .map { c -> ContactSms(c.name, c.phone, send(context, c.phone, senderLabel, latitude, longitude)) }
+        .map { c -> ContactSms(c.name, c.phone, send(context, c.phone, ownerName, latitude, longitude)) }
 
     /** Pure/testable: true only if there is a number worth attempting an SMS to. */
     fun shouldAttempt(contactPhone: String): Boolean = contactPhone.isNotBlank()
@@ -46,10 +46,15 @@ object ContactAlerter {
      * and a tappable Google Maps link. Kept compact but it will exceed one 160-char SMS segment once
      * the link is included — hence multipart in [send].
      */
-    fun buildMessage(senderLabel: String, latitude: Double, longitude: Double): String {
+    fun buildMessage(ownerName: String, latitude: Double, longitude: Double): String {
         val mapsUrl = "https://maps.google.com/?q=$latitude,$longitude"
+        val who = if (ownerName.isNotBlank()) {
+            "$ownerName may be in danger."
+        } else {
+            "Someone who added you as their emergency contact may be in danger."
+        }
         return "INCOG EMERGENCY\n" +
-            "$senderLabel may be in danger.\n" +
+            "$who\n" +
             "Location: ${"%.6f".format(latitude)}, ${"%.6f".format(longitude)}\n" +
             "Map: $mapsUrl"
     }
@@ -67,7 +72,7 @@ object ContactAlerter {
     fun send(
         context: Context,
         contactPhone: String,
-        senderLabel: String,
+        ownerName: String,
         latitude: Double,
         longitude: Double
     ): Boolean {
@@ -83,7 +88,7 @@ object ContactAlerter {
         return try {
             // getSystemService(SmsManager) — the API 31+ replacement for the deprecated getDefault().
             val sms = context.getSystemService(SmsManager::class.java)
-            val message = buildMessage(senderLabel, latitude, longitude)
+            val message = buildMessage(ownerName, latitude, longitude)
             // Multipart: a single sendTextMessage() truncates at 160 chars and would cut the Maps link.
             val parts = sms.divideMessage(message)
             sms.sendMultipartTextMessage(contactPhone, null, parts, null, null)

@@ -285,11 +285,11 @@ class GhostStateService : Service() {
             // path), then reports the results to the backend (REDUNDANT path). Read IncogConfig now,
             // not at service start, so contacts edited mid-session are honoured. SMS goes FIRST
             // because it is time-critical and must not queue behind the free-tier backend's cold start.
-            val contacts = IncogConfig(this@GhostStateService).load().contacts
+            val config = IncogConfig(this@GhostStateService).load()
             val smsResults = ContactAlerter.sendAll(
                 context = this@GhostStateService,
-                contacts = contacts,
-                senderLabel = deviceId,
+                contacts = config.contacts,
+                ownerName = config.ownerName,
                 latitude = latitude,
                 longitude = longitude
             )
