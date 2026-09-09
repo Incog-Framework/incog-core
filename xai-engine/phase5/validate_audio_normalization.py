@@ -6,9 +6,18 @@ THE CONTRACT (read off the real code, not the handoff prose)
                             lastRmsEnergy = sqrt(mean(sample^2)) over the
                             signed 16-bit samples of ONE AudioRecord read
   SensorPacket.kt           audioRmsEnergy: Double  (that RMS, 0..32768)
-  FeatureExtractor.kt       audioEnergy = (audioRmsEnergy / 32768)
-                                            .coerceAtMost(1.0)
-  sensor_packet_adapter.py  audio_energy = clamp(rms / 32768, 0, 1)
+  FeatureExtractor.kt       audioEnergy = dB rescale of audioRmsEnergy,
+                                            clamped to [0, 1] - see below
+  sensor_packet_adapter.py  audio_energy = clamp((20*log10(max(rms,1)/32768)
+                                            - AUDIO_FLOOR_DB)
+                                            / (AUDIO_CEIL_DB - AUDIO_FLOOR_DB),
+                                            0, 1)
+
+  Revised 2026-09-06: the original clamp(rms/32768, 0, 1) linear mapping was
+  validated (this script, Level 2) against real RAVDESS distress speech and
+  found dead - even a studio scream read ~0.085. AUDIO_FLOOR_DB/AUDIO_CEIL_DB
+  were fitted against that same RAVDESS distribution; see
+  sensor_packet_adapter.py for exactly how.
 
 WHAT THIS SCRIPT CAN AND CANNOT ESTABLISH
 -----------------------------------------
@@ -47,7 +56,6 @@ sys.path.insert(0, str(BASE_DIR / "phase5"))
 sys.path.insert(0, str(BASE_DIR / "phase4"))
 
 from dataset_adapters import (              # noqa: E402
-    AUDIO_RMS_FULL_SCALE,
     DEVICE_SAMPLE_RATE_HZ,
     DatasetUnavailable,
     load_ravdess_audio_energy,
@@ -55,7 +63,12 @@ from dataset_adapters import (              # noqa: E402
     pcm16_rms_to_audio_energy,
     read_wav_as_pcm16_mono_16k
 )
-from sensor_packet_adapter import compute_feature_vector_from_packet  # noqa: E402
+from sensor_packet_adapter import (         # noqa: E402
+    AUDIO_CEIL_DB,
+    AUDIO_FLOOR_DB,
+    AUDIO_RMS_FULL_SCALE,
+    compute_feature_vector_from_packet
+)
 
 REPORT_PATH = BASE_DIR / "data" / "audio_validation_report.json"
 
@@ -66,8 +79,32 @@ CHUNK_FRAMES = 1024
 # LEVEL 1 - arithmetic
 # ============================================================
 
+def _rms_at_dbfs(db):
+    """The constant-amplitude RMS that reads exactly `db` dBFS (dB re full scale)."""
+
+    return AUDIO_RMS_FULL_SCALE * (10.0 ** (db / 20.0))
+
+
+def _expected_audio_energy_from_rms(rms):
+    """Reference implementation, independent of the code under test."""
+
+    db = 20.0 * np.log10(max(rms, 1.0) / AUDIO_RMS_FULL_SCALE)
+
+    return round(
+        min(max((db - AUDIO_FLOOR_DB) / (AUDIO_CEIL_DB - AUDIO_FLOOR_DB), 0.0), 1.0),
+        4
+    )
+
+
 def level1_arithmetic():
-    """Signals whose RMS is known in closed form."""
+    """Signals whose RMS is known in closed form, spanning the dB curve.
+
+    Includes the floor, the ceiling and the midpoint of AUDIO_FLOOR_DB..
+    AUDIO_CEIL_DB so a passing suite proves the log-linear ramp itself, not
+    just that both ends clamp - a sine at full or half amplitude both clamp
+    to 1.0 under this scale (they are far louder than AUDIO_CEIL_DB), so they
+    would not have caught a broken ramp.
+    """
 
     checks = []
 
@@ -83,26 +120,31 @@ def level1_arithmetic():
             "passed": bool(passed)
         })
 
+    def constant_signal_at_dbfs(db):
+        return np.full(CHUNK_FRAMES, -_rms_at_dbfs(db))
+
     check("silence", np.zeros(CHUNK_FRAMES), 0.0)
 
-    # every sample at negative full scale -> RMS exactly 32768 -> exactly 1.0
+    # every sample at negative full scale -> RMS exactly 32768 -> 0 dBFS -> 1.0
     check("full_scale_square", np.full(CHUNK_FRAMES, -32768.0), 1.0)
-
-    # sine at full amplitude -> RMS = A/sqrt(2)
-    time = np.arange(DEVICE_SAMPLE_RATE_HZ)
-    sine = np.round(32767 * np.sin(2 * np.pi * 440 * time / DEVICE_SAMPLE_RATE_HZ))
-    check("full_scale_sine_440hz", sine, (32767 / np.sqrt(2)) / AUDIO_RMS_FULL_SCALE, 1e-3)
-
-    # half-amplitude sine -> half the energy of the above
-    check(
-        "half_scale_sine_440hz",
-        np.round(sine / 2),
-        (32767 / 2 / np.sqrt(2)) / AUDIO_RMS_FULL_SCALE,
-        1e-3
-    )
 
     # above full scale must clamp, never exceed 1.0
     check("above_full_scale_clamps", np.full(CHUNK_FRAMES, -32768.0) * 3, 1.0)
+
+    # exactly at AUDIO_FLOOR_DB - the bottom of the linear ramp
+    check("at_floor_db", constant_signal_at_dbfs(AUDIO_FLOOR_DB), 0.0, 1e-3)
+
+    # exactly at AUDIO_CEIL_DB - the top of the linear ramp
+    check("at_ceil_db", constant_signal_at_dbfs(AUDIO_CEIL_DB), 1.0, 1e-3)
+
+    # exactly halfway between FLOOR and CEIL in dB - proves the ramp is linear
+    # in dB, not just that the two ends clamp correctly
+    check(
+        "midpoint_of_db_range",
+        constant_signal_at_dbfs((AUDIO_FLOOR_DB + AUDIO_CEIL_DB) / 2.0),
+        0.5,
+        1e-3
+    )
 
     return checks
 
@@ -112,7 +154,9 @@ def level1_adapter_agreement():
 
     checks = []
 
-    for rms in (0.0, 1.0, 500.0, 16384.0, 32768.0, 99999.0, -500.0):
+    midpoint_rms = round(_rms_at_dbfs((AUDIO_FLOOR_DB + AUDIO_CEIL_DB) / 2.0), 1)
+
+    for rms in (0.0, 1.0, 500.0, midpoint_rms, 16384.0, 32768.0, 99999.0, -500.0):
         packet = {
             "sessionId": "SESS-AUDIOVAL",
             "timestampMs": 0,
@@ -122,7 +166,7 @@ def level1_adapter_agreement():
         }
 
         actual = compute_feature_vector_from_packet(packet)["AudioEnergy"]
-        expected = round(min(max(rms / AUDIO_RMS_FULL_SCALE, 0.0), 1.0), 4)
+        expected = _expected_audio_energy_from_rms(rms)
 
         checks.append({
             "audioRmsEnergy": rms,
@@ -202,7 +246,10 @@ def main():
     print("=" * 64)
 
     print("\nContract under test:")
-    print(f"  AudioEnergy = clamp(audioRmsEnergy / {AUDIO_RMS_FULL_SCALE:.0f}, 0, 1)")
+    print(
+        f"  AudioEnergy = clamp((20*log10(max(rms,1)/{AUDIO_RMS_FULL_SCALE:.0f}) "
+        f"- {AUDIO_FLOOR_DB}) / ({AUDIO_CEIL_DB} - {AUDIO_FLOOR_DB}), 0, 1)"
+    )
     print(f"  audioRmsEnergy = RMS of signed PCM16 @ {DEVICE_SAMPLE_RATE_HZ} Hz mono")
 
     # ---------------- Level 1 ----------------
@@ -282,11 +329,13 @@ def main():
         print(
             "\n  No real audio supplied - the calibration question is OPEN.\n"
             "  Unanswered: where do quiet ambient / speech / a scream land in\n"
-            "  [0, 1] when the phone is in a pocket? If everything real lands\n"
-            "  below ~0.05, AudioEnergy is close to a constant and the model\n"
-            "  is effectively running on four features, not five.\n"
-            "  The training data assumes 0.04-0.25 normal and 0.55-0.91\n"
-            "  emergency; NOTHING has confirmed those ranges are reachable."
+            "  [0, 1] when the phone is in a pocket? Fetch RAVDESS to get the\n"
+            "  studio-recorded bound (python phase5/fetch_datasets.py "
+            "--dataset ravdess),\n"
+            "  or pass --wav for an actual on-device recording. NOTHING has\n"
+            "  confirmed the AUDIO_FLOOR_DB/AUDIO_CEIL_DB scale in "
+            "sensor_packet_adapter.py\n"
+            "  is reachable by a real pocketed phone."
         )
 
     # ---------------- Report ----------------
@@ -294,8 +343,14 @@ def main():
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "contract": {
-            "formula": "clamp(audioRmsEnergy / 32768, 0, 1)",
+            "formula": (
+                "clamp((20*log10(max(rms,1)/audioRmsFullScale) - floorDb) "
+                "/ (ceilDb - floorDb), 0, 1)"
+            ),
             "full_scale": AUDIO_RMS_FULL_SCALE,
+            "floor_db": AUDIO_FLOOR_DB,
+            "ceil_db": AUDIO_CEIL_DB,
+            "revised": "2026-09-06, from clamp(rms/32768, 0, 1) - see MODEL_CARD.md",
             "sample_rate_hz": DEVICE_SAMPLE_RATE_HZ,
             "encoding": "PCM16 mono"
         },
@@ -316,8 +371,9 @@ def main():
         "how_to_close": (
             "Log packet.audioRmsEnergy from GhostStateService during a real "
             "Ghost State session - quiet room, normal conversation, shouting, "
-            "phone in a pocket - and compare the resulting AudioEnergy values "
-            "against the 0.04-0.91 range the training data assumes."
+            "phone in a pocket - and pass the resulting .wav (or the raw "
+            "audioRmsEnergy values) through this script's --wav option to "
+            "see where they land against AUDIO_FLOOR_DB/AUDIO_CEIL_DB."
         )
     }
 
