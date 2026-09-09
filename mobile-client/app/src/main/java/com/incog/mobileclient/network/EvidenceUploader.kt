@@ -2,6 +2,7 @@ package com.incog.mobileclient.network
 
 import android.util.Log
 import com.incog.mobileclient.BuildConfig
+import com.incog.mobileclient.alert.ContactSms
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.net.HttpURLConnection
@@ -33,15 +34,10 @@ object EvidenceUploader {
         longitude: Double,
         encryptedEvidenceBase64: String,
         isStealthActive: Boolean = true,
-        contactName: String = "",
-        contactPhone: String = "",
-        contactSmsSent: Boolean? = null
+        contacts: List<ContactSms> = emptyList()
     ): Boolean {
         val body = JSONObject(
-            buildBody(
-                deviceId, latitude, longitude, encryptedEvidenceBase64,
-                isStealthActive, contactName, contactPhone, contactSmsSent
-            )
+            buildBody(deviceId, latitude, longitude, encryptedEvidenceBase64, isStealthActive, contacts)
         ).toString()
 
         var conn: HttpURLConnection? = null
@@ -74,10 +70,14 @@ object EvidenceUploader {
 
     /**
      * Builds the request body as an ordered map (pure + unit-testable; [upload] wraps it in a
-     * JSONObject). `contact_name`/`contact_phone` are always sent — the backend treats blank as
-     * "not configured". `contact_sms_sent` is OMITTED when null: per the backend contract, null =
-     * "we didn't try", whereas false = "we tried and failed" (which makes the responder channel
-     * shout CALL THEM), so the two must not be conflated.
+     * JSONObject).
+     *
+     * Multi-contact + backward-compatible: the full list goes in `contacts` (array of
+     * {name, phone, sms_sent}); the FIRST contact is ALSO mirrored into the legacy
+     * `contact_name`/`contact_phone`/`contact_sms_sent` fields so today's backend (which only reads
+     * the single fields) still alerts at least one contact until it consumes the array.
+     * `contact_sms_sent` is OMITTED when there are no contacts: per the backend contract, null/absent
+     * = "we didn't try", whereas false = "we tried and failed" — the two must not be conflated.
      */
     internal fun buildBody(
         deviceId: String,
@@ -85,17 +85,23 @@ object EvidenceUploader {
         longitude: Double,
         encryptedEvidenceBase64: String,
         isStealthActive: Boolean,
-        contactName: String,
-        contactPhone: String,
-        contactSmsSent: Boolean?
+        contacts: List<ContactSms>
     ): Map<String, Any?> = buildMap {
         put("device_id", deviceId)
         put("latitude", latitude)
         put("longitude", longitude)
         put("is_stealth_active", isStealthActive)
         put("encrypted_evidence", encryptedEvidenceBase64)
-        put("contact_name", contactName)
-        put("contact_phone", contactPhone)
-        if (contactSmsSent != null) put("contact_sms_sent", contactSmsSent)
+
+        val first = contacts.firstOrNull()
+        put("contact_name", first?.name ?: "")
+        put("contact_phone", first?.phone ?: "")
+        if (first != null) put("contact_sms_sent", first.smsSent)
+
+        if (contacts.isNotEmpty()) {
+            put("contacts", contacts.map {
+                mapOf("name" to it.name, "phone" to it.phone, "sms_sent" to it.smsSent)
+            })
+        }
     }
 }

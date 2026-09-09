@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.telephony.SmsManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.incog.mobileclient.config.Contact
 
 /**
  * Sends the emergency SMS to the user's trusted contact directly from the device — the PRIMARY
@@ -17,8 +18,25 @@ import androidx.core.content.ContextCompat
  * [send] never throws and returns true only if the message was actually handed to the radio, so an
  * SMS failure can never take down the Ghost State session or the evidence upload.
  */
+/** The outcome of texting one contact — carried to the backend so it knows who was reached. */
+data class ContactSms(val name: String, val phone: String, val smsSent: Boolean)
+
 object ContactAlerter {
     private const val TAG = "ContactAlerter"
+
+    /**
+     * Texts every contact with a non-blank number and returns a per-contact result. Each send is
+     * independent — one failing (or the permission being missing) never stops the others.
+     */
+    fun sendAll(
+        context: Context,
+        contacts: List<Contact>,
+        senderLabel: String,
+        latitude: Double,
+        longitude: Double
+    ): List<ContactSms> = contacts
+        .filter { it.phone.isNotBlank() }
+        .map { c -> ContactSms(c.name, c.phone, send(context, c.phone, senderLabel, latitude, longitude)) }
 
     /** Pure/testable: true only if there is a number worth attempting an SMS to. */
     fun shouldAttempt(contactPhone: String): Boolean = contactPhone.isNotBlank()
