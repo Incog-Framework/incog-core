@@ -23,6 +23,8 @@ import com.incog.incogsecuritycore.GPSData
 import com.incog.incogsecuritycore.SecurityOrchestrator
 import com.incog.mobileclient.ai.AiResult
 import com.incog.mobileclient.ai.EmergencyClassifier
+import com.incog.mobileclient.alert.ContactAlerter
+import com.incog.mobileclient.config.IncogConfig
 import com.incog.mobileclient.handoff.SensorPacket
 import com.incog.mobileclient.network.EvidenceUploader
 import com.incog.mobileclient.sensors.AudioBufferCollector
@@ -278,7 +280,29 @@ class GhostStateService : Service() {
                 return@launch
             }
             val blobBase64 = Base64.encodeToString(pipeline.encryptedBlob, Base64.NO_WRAP)
-            val ok = EvidenceUploader.upload(deviceId, latitude, longitude, blobBase64)
+
+            // Hybrid dispatch: the phone texts ALL the user's trusted contacts itself (PRIMARY
+            // path), then reports the results to the backend (REDUNDANT path). Read IncogConfig now,
+            // not at service start, so contacts edited mid-session are honoured. SMS goes FIRST
+            // because it is time-critical and must not queue behind the free-tier backend's cold start.
+            val config = IncogConfig(this@GhostStateService).load()
+            val smsResults = ContactAlerter.sendAll(
+                context = this@GhostStateService,
+                contacts = config.contacts,
+                ownerName = config.ownerName,
+                latitude = latitude,
+                longitude = longitude
+            )
+            val sentCount = smsResults.count { it.smsSent }
+            Log.i(TAG, "Contact SMS: $sentCount/${smsResults.size} sent.")
+
+            val ok = EvidenceUploader.upload(
+                deviceId = deviceId,
+                latitude = latitude,
+                longitude = longitude,
+                encryptedEvidenceBase64 = blobBase64,
+                contacts = smsResults
+            )
             Log.i(TAG, "Evidence upload ${if (ok) "succeeded" else "FAILED"} for ${result.sessionId}")
         }
     }

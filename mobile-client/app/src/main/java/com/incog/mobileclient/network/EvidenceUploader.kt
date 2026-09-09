@@ -2,6 +2,7 @@ package com.incog.mobileclient.network
 
 import android.util.Log
 import com.incog.mobileclient.BuildConfig
+import com.incog.mobileclient.alert.ContactSms
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.net.HttpURLConnection
@@ -32,15 +33,12 @@ object EvidenceUploader {
         latitude: Double,
         longitude: Double,
         encryptedEvidenceBase64: String,
-        isStealthActive: Boolean = true
+        isStealthActive: Boolean = true,
+        contacts: List<ContactSms> = emptyList()
     ): Boolean {
-        val body = JSONObject()
-            .put("device_id", deviceId)
-            .put("latitude", latitude)
-            .put("longitude", longitude)
-            .put("is_stealth_active", isStealthActive)
-            .put("encrypted_evidence", encryptedEvidenceBase64)
-            .toString()
+        val body = JSONObject(
+            buildBody(deviceId, latitude, longitude, encryptedEvidenceBase64, isStealthActive, contacts)
+        ).toString()
 
         var conn: HttpURLConnection? = null
         return try {
@@ -67,6 +65,43 @@ object EvidenceUploader {
             false
         } finally {
             conn?.disconnect()
+        }
+    }
+
+    /**
+     * Builds the request body as an ordered map (pure + unit-testable; [upload] wraps it in a
+     * JSONObject).
+     *
+     * Multi-contact + backward-compatible: the full list goes in `contacts` (array of
+     * {name, phone, sms_sent}); the FIRST contact is ALSO mirrored into the legacy
+     * `contact_name`/`contact_phone`/`contact_sms_sent` fields so today's backend (which only reads
+     * the single fields) still alerts at least one contact until it consumes the array.
+     * `contact_sms_sent` is OMITTED when there are no contacts: per the backend contract, null/absent
+     * = "we didn't try", whereas false = "we tried and failed" — the two must not be conflated.
+     */
+    internal fun buildBody(
+        deviceId: String,
+        latitude: Double,
+        longitude: Double,
+        encryptedEvidenceBase64: String,
+        isStealthActive: Boolean,
+        contacts: List<ContactSms>
+    ): Map<String, Any?> = buildMap {
+        put("device_id", deviceId)
+        put("latitude", latitude)
+        put("longitude", longitude)
+        put("is_stealth_active", isStealthActive)
+        put("encrypted_evidence", encryptedEvidenceBase64)
+
+        val first = contacts.firstOrNull()
+        put("contact_name", first?.name ?: "")
+        put("contact_phone", first?.phone ?: "")
+        if (first != null) put("contact_sms_sent", first.smsSent)
+
+        if (contacts.isNotEmpty()) {
+            put("contacts", contacts.map {
+                mapOf("name" to it.name, "phone" to it.phone, "sms_sent" to it.smsSent)
+            })
         }
     }
 }

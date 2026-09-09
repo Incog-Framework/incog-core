@@ -19,27 +19,33 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.incog.mobileclient.config.Contact
+import com.incog.mobileclient.config.IncogConfig
 import com.incog.mobileclient.config.IncogSettings
 import com.incog.mobileclient.config.SecretCodes
 
 /**
  * Owner-only setup, shown automatically on first run and reachable later via the concealed settings
- * code. Configures the emergency contact and the three concealed codes so nothing ships hardcoded.
- *
- * Reached only by the owner (first run, or the settings code), so labels are plain rather than
- * disguised — a future stealth pass could cover this screen as "Calculator preferences" if desired.
+ * code. Configures the trusted contacts (all are texted on an emergency) and the concealed codes so
+ * nothing ships hardcoded.
  */
+private class ContactRow(name: String, phone: String) {
+    var name by mutableStateOf(name)
+    var phone by mutableStateOf(phone)
+}
+
 @Composable
 fun SetupScreen(
     initial: IncogSettings,
@@ -48,8 +54,13 @@ fun SetupScreen(
     modifier: Modifier = Modifier,
     onCancel: (() -> Unit)? = null,
 ) {
-    var contactName by remember { mutableStateOf(initial.contactName) }
-    var contactPhone by remember { mutableStateOf(initial.contactPhone) }
+    val rows = remember {
+        mutableStateListOf<ContactRow>().apply {
+            val start = initial.contacts.ifEmpty { listOf(Contact()) }
+            start.forEach { add(ContactRow(it.name, it.phone)) }
+        }
+    }
+    var ownerName by remember { mutableStateOf(initial.ownerName) }
     var unlockCode by remember { mutableStateOf(initial.codes.unlock) }
     var standDownCode by remember { mutableStateOf(initial.codes.standDown) }
     var settingsCode by remember { mutableStateOf(initial.codes.settings) }
@@ -59,10 +70,7 @@ fun SetupScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            // imePadding shrinks the viewport to sit above the keyboard, so the scroll range covers
-            // the lower fields and the focused one is auto-scrolled into view instead of being hidden.
             .imePadding()
-            // Tapping empty space dismisses the keyboard (drags still scroll — tap != drag).
             .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) }
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
@@ -73,28 +81,57 @@ fun SetupScreen(
             style = MaterialTheme.typography.headlineSmall,
         )
         Text(
-            text = "Configure your trusted contact and your private codes. Choose codes only you " +
-                "know — they replace the defaults.",
+            text = "Add the people to alert in an emergency and choose your private codes. Every " +
+                "contact below is texted your location when a trigger fires.",
             style = MaterialTheme.typography.bodyMedium,
         )
 
-        SectionLabel("Trusted contact")
+        SectionLabel("Your details")
         OutlinedTextField(
-            value = contactName,
-            onValueChange = { contactName = it },
-            label = { Text("Name (optional)") },
+            value = ownerName,
+            onValueChange = { ownerName = it },
+            label = { Text("Your name") },
+            supportingText = { Text("Shown to your contacts: \"<name> may be in danger\"") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        OutlinedTextField(
-            value = contactPhone,
-            onValueChange = { contactPhone = it },
-            label = { Text("Phone number") },
-            supportingText = { Text("With country code, e.g. +919876543210") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            modifier = Modifier.fillMaxWidth(),
-        )
+
+        SectionLabel("Trusted contacts")
+        rows.forEachIndexed { index, row ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("Contact ${index + 1}", style = MaterialTheme.typography.titleSmall)
+                    if (rows.size > 1) {
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { rows.removeAt(index) }) { Text("Remove") }
+                    }
+                }
+                OutlinedTextField(
+                    value = row.name,
+                    onValueChange = { row.name = it },
+                    label = { Text("Name (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = row.phone,
+                    onValueChange = { row.phone = it },
+                    label = { Text("Phone number") },
+                    supportingText = { Text("With country code, e.g. +919876543210") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        if (rows.size < IncogConfig.MAX_CONTACTS) {
+            OutlinedButton(onClick = { rows.add(ContactRow("", "")) }) {
+                Text("+ Add another contact")
+            }
+        }
 
         SectionLabel("Concealed codes (digits only, typed on the calculator then =)")
         CodeField("Unlock code — opens Accessibility settings", unlockCode) { unlockCode = it }
@@ -116,14 +153,15 @@ fun SetupScreen(
             }
             Button(
                 onClick = {
-                    val validation = validate(contactPhone, unlockCode, standDownCode, settingsCode)
+                    val contacts = rows.map { Contact(it.name.trim(), it.phone.trim()) }
+                    val validation = validate(contacts, unlockCode, standDownCode, settingsCode)
                     if (validation != null) {
                         error = validation
                     } else {
                         onSave(
                             IncogSettings(
-                                contactName = contactName.trim(),
-                                contactPhone = contactPhone.trim(),
+                                ownerName = ownerName.trim(),
+                                contacts = contacts.filter { it.phone.isNotBlank() },
                                 codes = SecretCodes(
                                     unlock = unlockCode.trim(),
                                     standDown = standDownCode.trim(),
@@ -159,7 +197,7 @@ private fun CodeField(label: String, value: String, onChange: (String) -> Unit) 
         singleLine = true,
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.NumberPassword,
-            imeAction = ImeAction.Done,
+            imeAction = androidx.compose.ui.text.input.ImeAction.Done,
         ),
         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
         modifier = Modifier.fillMaxWidth(),
@@ -168,13 +206,17 @@ private fun CodeField(label: String, value: String, onChange: (String) -> Unit) 
 
 /** Returns an error message, or null if everything is valid. Package-visible for unit testing. */
 internal fun validate(
-    phone: String,
+    contacts: List<Contact>,
     unlock: String,
     standDown: String,
     settings: String,
 ): String? {
-    if (!phone.trim().matches(PHONE_REGEX)) {
-        return "Enter a valid phone number (7–15 digits, optional leading +)."
+    val phones = contacts.map { it.phone.trim() }.filter { it.isNotEmpty() }
+    if (phones.isEmpty()) {
+        return "Add at least one contact with a phone number."
+    }
+    if (phones.any { !it.matches(PHONE_REGEX) }) {
+        return "Each phone number must be 7–15 digits, with an optional leading +."
     }
     val codes = listOf(unlock.trim(), standDown.trim(), settings.trim())
     if (codes.any { !it.matches(CODE_REGEX) }) {
