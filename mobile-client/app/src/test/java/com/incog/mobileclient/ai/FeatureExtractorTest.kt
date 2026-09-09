@@ -67,11 +67,20 @@ class FeatureExtractorTest {
     }
 
     @Test
-    fun `audio energy is rescaled by PCM16 full scale and clamped to 1`() {
-        val f = FeatureExtractor.fromSensorPacket(packet(listOf(accel(1f, 0f, 0f)), audioRms = 16384.0))!!
-        assertEquals(0.5, f.audioEnergy, 1e-4) // 16384 / 32768
-        val clamped = FeatureExtractor.fromSensorPacket(packet(listOf(accel(1f, 0f, 0f)), audioRms = 99999.0))!!
-        assertEquals(1.0, clamped.audioEnergy, 1e-9) // coerced to 1.0
+    fun `audio energy is a dB-scaled loudness clamped to 0 and 1`() {
+        // clamp((20*log10(max(rms,1)/32768) + 32) / 12, 0, 1): floor -32 dB -> 0, ceil -20 dB -> 1.
+        // Loud (rms 6000, ~-15 dB) clamps to 1.0 — matches on-device shout readings.
+        val loud = FeatureExtractor.fromSensorPacket(packet(listOf(accel(1f, 0f, 0f)), audioRms = 6000.0))!!
+        assertEquals(1.0, loud.audioEnergy, 1e-4)
+        // Quiet ambient (rms 40, ~-58 dB) clamps to 0.0.
+        val quiet = FeatureExtractor.fromSensorPacket(packet(listOf(accel(1f, 0f, 0f)), audioRms = 40.0))!!
+        assertEquals(0.0, quiet.audioEnergy, 1e-4)
+        // Midpoint (rms ~1642, ~-26 dB) sits halfway.
+        val mid = FeatureExtractor.fromSensorPacket(packet(listOf(accel(1f, 0f, 0f)), audioRms = 1642.0))!!
+        assertEquals(0.5, mid.audioEnergy, 1e-3)
+        // Silence (rms 0) uses the max(rms,1) floor and clamps to 0.0.
+        val silent = FeatureExtractor.fromSensorPacket(packet(listOf(accel(1f, 0f, 0f)), audioRms = 0.0))!!
+        assertEquals(0.0, silent.audioEnergy, 1e-9)
     }
 
     @Test

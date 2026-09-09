@@ -40,6 +40,7 @@ HONESTY RULES
 """
 
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -54,6 +55,11 @@ from feature_extraction import (            # noqa: E402
     acceleration_magnitude,
     peak_and_variance,
     possible_fall
+)
+from sensor_packet_adapter import (         # noqa: E402
+    AUDIO_CEIL_DB,
+    AUDIO_FLOOR_DB,
+    AUDIO_RMS_FULL_SCALE
 )
 
 DATA_DIR = BASE_DIR / "data"
@@ -171,13 +177,17 @@ def magnitudes_from_xyz(frame, columns=("x", "y", "z"), scale=1.0):
 #
 # Mirrors the two Kotlin pieces that together produce the feature:
 #   AudioBufferCollector.computeRms   RMS over signed PCM16 samples
-#   FeatureExtractor                  / 32768, clamped
+#   FeatureExtractor                  dB rescale, clamped - see
+#                                      sensor_packet_adapter.AUDIO_FLOOR_DB
+#
+# AUDIO_RMS_FULL_SCALE / AUDIO_FLOOR_DB / AUDIO_CEIL_DB are imported from
+# sensor_packet_adapter, not redefined here, so this training-data path and
+# the real-packet path can never independently drift on the formula.
 #
 # Kept dependency-free (numpy only) so it runs anywhere; the stdlib audioop
 # module that would otherwise do this was removed in Python 3.13.
 # ============================================================
 
-AUDIO_RMS_FULL_SCALE = 32768.0
 DEVICE_SAMPLE_RATE_HZ = 16000        # AudioBufferCollector.SAMPLE_RATE
 
 
@@ -195,7 +205,10 @@ def pcm16_rms(samples):
 def pcm16_rms_to_audio_energy(samples):
     """Full device mapping: PCM16 samples -> the model's AudioEnergy feature."""
 
-    return min(max(pcm16_rms(samples) / AUDIO_RMS_FULL_SCALE, 0.0), 1.0)
+    rms = pcm16_rms(samples)
+    db = 20.0 * np.log10(max(rms, 1.0) / AUDIO_RMS_FULL_SCALE)
+
+    return min(max((db - AUDIO_FLOOR_DB) / (AUDIO_CEIL_DB - AUDIO_FLOOR_DB), 0.0), 1.0)
 
 
 def read_wav_as_pcm16_mono_16k(path):
@@ -775,15 +788,23 @@ def load_wisdm():
 # RAVDESS - the audio half only
 # ============================================================
 
+@lru_cache(maxsize=1)
 def load_ravdess_audio_energy():
     """AudioEnergy distributions from RAVDESS, on the phone's own scale.
+
+    Cached: decoding ~82k .wav chunks takes minutes, and both load_fusion()
+    and validate_audio_normalization.py call this - callers get a DataFrame
+    they only ever read (.loc / boolean-index into it), never mutate, so
+    sharing one decoded copy per process is safe.
 
     RAVDESS filenames encode emotion in the third field, e.g.
     03-01-06-01-02-01-12.wav -> emotion 06 (fearful).
 
     Each clip is converted the way the device does it: mono, 16 kHz, PCM16,
-    then RMS per read-chunk, then / 32768 (AudioBufferCollector.computeRms +
-    FeatureExtractor.AUDIO_RMS_FULL_SCALE).
+    then RMS per read-chunk, then the dB rescale (AudioBufferCollector.computeRms
+    + FeatureExtractor's AUDIO_FLOOR_DB/AUDIO_CEIL_DB - see
+    sensor_packet_adapter.py for the formula and how these two were fitted
+    against this exact dataset).
 
     Returns a DataFrame of AudioEnergy values with a distress flag. This does
     NOT produce trainable 5-feature rows on its own - it is the audio half of
@@ -1046,10 +1067,164 @@ def load_shimfall():
 
 
 # ============================================================
+# fusion - real motion x RAVDESS audio, explicitly paired by assumption
+#
+# No public corpus records motion and audio for the same moment, and none
+# records GPS at all. This is the seam where that gap is closed - loudly,
+# not silently - so a model can be trained on all five features while every
+# reader of the metrics file can see exactly which of them are observed and
+# which are assigned.
+# ============================================================
+
+# 05 angry / 06 fearful / 07 disgust, matching load_ravdess_audio_energy.
+FUSION_DISTRESS_EMOTIONS = {"05", "06", "07"}
+
+# GPSVelocity is not present in ANY available corpus, paired or not.
+#
+# REVISION (Aarush, 2026-09-06): the first version of this function set GPS
+# by activity - stationary ADLs AND every fall at 0.0 m/s, walking at
+# ~1.2-0.5 m/s. That taught the model "high GPS velocity => not an
+# emergency", which is exactly backwards and safety-critical: it would
+# suppress the alert precisely when someone is fleeing an attacker at speed.
+#
+# Until real GPS+incident captures exist to learn the real relationship (if
+# any), GPSVelocity is instead sampled from ONE shared distribution
+# independent of Activity and of the Emergency label, so it carries no
+# information the model could key on either direction. This is a deliberate
+# placeholder, not a fix: it stops the model from learning the wrong thing,
+# it does not teach it the right one. The [1,5] contract stays stable so the
+# slot is ready the moment real data can fill it honestly.
+FUSION_GPS_VELOCITY_RANGE_MPS = (0.0, 3.0)
+
+
+def _fusion_gps_velocity(rng):
+    return round(float(rng.uniform(*FUSION_GPS_VELOCITY_RANGE_MPS)), 4)
+
+
+def load_fusion(motion_names=("uci_har", "shimfall"), random_state=42):
+    """Real motion windows, paired with resampled RAVDESS AudioEnergy.
+
+    THE ASSUMPTION THIS MAKES EXPLICIT
+    -----------------------------------
+    Each motion row keeps its real PeakAcceleration / MotionVariance /
+    PossibleFall. AudioEnergy is drawn at random from RAVDESS clips whose
+    emotion matches the row's label - distress (angry/fearful/disgust) for
+    Emergency rows, everything else for Normal rows. That assumes voice
+    distress and body motion are conditionally independent given the label,
+    which is very likely false in reality (a real fall can happen in
+    near-silence; a scream can happen while standing still) - it is a
+    modelling convenience, not an observation, so `is_production_evidence`
+    is False for the fused rows even though every individual channel (the
+    motion, the audio) is separately real.
+
+    GPSVelocity has no source at all, paired or not. It is sampled from
+    FUSION_GPS_VELOCITY_RANGE_MPS uniformly at random, independent of
+    Activity and of the Emergency label - deliberately, so the model cannot
+    learn any GPS-vs-emergency correlation from it. See the revision note on
+    FUSION_GPS_VELOCITY_RANGE_MPS above for why: an earlier, activity-keyed
+    version taught the model "moving fast = not an emergency", which would
+    suppress the alert exactly when someone is fleeing.
+
+    Returns rows with Subject/Activity metadata carried through from the
+    motion components, so training can still split by subject.
+    """
+
+    rng = np.random.default_rng(random_state)
+
+    frames = []
+    provenances = []
+
+    for name in motion_names:
+        data, provenance = load_dataset(name)
+        frames.append(data)
+        provenances.append(provenance)
+
+    motion = pd.concat(frames, ignore_index=True)
+
+    audio_records, audio_provenance = load_ravdess_audio_energy()
+
+    distress_pool = audio_records.loc[
+        audio_records["IsDistress"], "AudioEnergy"
+    ].to_numpy()
+    calm_pool = audio_records.loc[
+        ~audio_records["IsDistress"], "AudioEnergy"
+    ].to_numpy()
+
+    is_emergency = motion[TARGET].to_numpy() == 1
+
+    sampled_audio = np.empty(len(motion), dtype=float)
+    sampled_audio[is_emergency] = rng.choice(
+        distress_pool, size=int(is_emergency.sum())
+    )
+    sampled_audio[~is_emergency] = rng.choice(
+        calm_pool, size=int((~is_emergency).sum())
+    )
+
+    fused = motion.copy()
+    fused["AudioEnergy"] = np.round(sampled_audio, 4)
+    fused["GPSVelocity"] = [
+        _fusion_gps_velocity(rng) for _ in range(len(fused))
+    ]
+
+    provenance = {
+        "dataset": "fusion(" + "+".join(motion_names) + "+ravdess)",
+        "source": "phase5/dataset_adapters.py:load_fusion",
+        "is_synthetic": False,
+        "is_production_evidence": False,
+        "real_windows": len(fused),
+        "subjects": (
+            int(fused["Subject"].nunique()) if "Subject" in fused.columns else 0
+        ),
+        "components": provenances + [audio_provenance],
+        "fusion_method": {
+            "audio": (
+                "AudioEnergy sampled per-row, with replacement, from RAVDESS "
+                "clips whose emotion matches the row's label "
+                f"({sorted(FUSION_DISTRESS_EMOTIONS)} = distress for "
+                "Emergency, all other emotions for Normal). Assumes motion "
+                "and voice distress are conditionally independent given the "
+                "label - a modelling assumption, not an observation."
+            ),
+            "gps": (
+                "GPSVelocity sampled uniformly from "
+                f"{FUSION_GPS_VELOCITY_RANGE_MPS} m/s, independent of "
+                "Activity and of the Emergency label - deliberately "
+                "non-predictive. An earlier revision keyed it to activity "
+                "(falls and stationary ADLs at 0 m/s) and taught the model "
+                "'moving fast = not an emergency', which would suppress the "
+                "alert exactly when someone is fleeing at speed - a "
+                "safety-critical bug (flagged by Aarush, 2026-09-06). "
+                "Neutralizing it stops that failure mode; it does not add "
+                "fleeing-detection capability, which needs real "
+                "GPS+incident captures no corpus here provides."
+            ),
+            "random_seed": random_state
+        },
+        "caveat": (
+            "PeakAcceleration, MotionVariance and PossibleFall are real "
+            "per-subject motion. AudioEnergy and GPSVelocity are NOT "
+            "observed jointly with that motion - AudioEnergy is resampled "
+            "from RAVDESS by label (so it DOES carry a label signal), "
+            "GPSVelocity is sampled independent of label and activity (so "
+            "it deliberately carries NONE - see fusion_method.gps). This is "
+            "a constructed pairing, not a real joint capture, so "
+            "production_claim_supported will be False for any run on this "
+            "dataset no matter the score. Use it to TRAIN a model on all "
+            "five features; use evaluate_real_fpr.py's audio/GPS sweep "
+            "against real motion-only data for the honest "
+            "false-positive-rate range."
+        )
+    }
+
+    return fused[COLUMNS + [c for c in METADATA_COLUMNS if c in fused.columns]], provenance
+
+
+# ============================================================
 # Registry
 # ============================================================
 
 LOADERS = {
+    "fusion": load_fusion,
     "shimfall": load_shimfall,
     "synthetic": load_synthetic,
     "sensor_packets": load_sensor_packets,

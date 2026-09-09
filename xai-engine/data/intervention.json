@@ -1,14 +1,14 @@
 {
-    "Timestamp": "2026-09-03T01:05:00.748111",
-    "Prediction": "Emergency",
-    "Confidence": 1.0,
-    "EmergencyStatus": true,
+    "Timestamp": "2026-09-07T00:01:00.434705",
+    "Prediction": "Normal",
+    "Confidence": 0.0015,
+    "EmergencyStatus": false,
     "DecisionThreshold": 0.8,
     "Intervention": {
-        "Action": "Emergency Alert",
-        "Priority": "HIGH",
-        "Message": "Potential emergency condition detected.",
-        "RecommendedAction": "Initiate emergency response."
+        "Action": "No Alert",
+        "Priority": "LOW",
+        "Message": "No emergency condition detected.",
+        "RecommendedAction": "Continue monitoring."
     },
     "XAIAvailable": true,
     "SessionID": "SESS-DEMO0001",

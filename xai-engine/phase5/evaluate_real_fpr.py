@@ -371,7 +371,13 @@ def main():
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "model": "data/emergency_model.tflite",
-        "model_retrained": False,
+        "model_retrained_by_this_script": False,
+        "note": (
+            "This script only scores whatever data/emergency_model.tflite "
+            "currently is - it never trains. Whether THAT model was itself "
+            "produced by a retrain is recorded in data/tflite_model_metrics.json "
+            "(data_provenance.dataset), not here."
+        ),
         "datasets": names,
         "provenance": provenances,
         "windows_total": int(len(data)),
