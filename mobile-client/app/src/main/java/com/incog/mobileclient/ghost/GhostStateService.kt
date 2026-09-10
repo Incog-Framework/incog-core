@@ -254,12 +254,23 @@ class GhostStateService : Service() {
         )
         if (result.emergencyStatus && !emergencyHandled) {
             emergencyHandled = true
-            Log.w(
-                TAG,
-                "EMERGENCY CONFIRMED (confidence ${"%.4f".format(result.confidence)} >= " +
-                    "${result.decisionThreshold}) — running Phase 7-11 handoff. SessionID=${result.sessionId}"
-            )
-            handleEmergency(result, packet)
+            // Capture mode is for staging emergencies to collect TRAINING data — they aren't real,
+            // so suppress the whole alert pipeline (no SMS to contacts, no backend upload). The
+            // session is still recorded to the capture file; only the alerting is skipped.
+            if (captureBuffer != null) {
+                Log.w(
+                    TAG,
+                    "EMERGENCY CONFIRMED (confidence ${"%.4f".format(result.confidence)}) — " +
+                        "CAPTURE MODE: alert suppressed, recording only. SessionID=${result.sessionId}"
+                )
+            } else {
+                Log.w(
+                    TAG,
+                    "EMERGENCY CONFIRMED (confidence ${"%.4f".format(result.confidence)} >= " +
+                        "${result.decisionThreshold}) — running Phase 7-11 handoff. SessionID=${result.sessionId}"
+                )
+                handleEmergency(result, packet)
+            }
         }
     }
 
