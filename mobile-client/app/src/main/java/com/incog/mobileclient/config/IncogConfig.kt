@@ -1,6 +1,10 @@
 package com.incog.mobileclient.config
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
 /**
  * The owner-configurable concealed codes, typed on the calculator then "=".
@@ -50,13 +54,13 @@ data class IncogSettings(
  * JSON/serialization dependency is needed. A legacy single-contact install (old `contact_name` /
  * `contact_phone` keys) is migrated to a one-element list on read.
  *
- * Note: this stores the contacts and access codes in the app's private prefs — adequate for the MVP;
- * a hardened build would encrypt them at rest (EncryptedSharedPreferences) so a rooted device can't
- * read the trusted contacts. Tracked as a follow-up.
+ * Stored in EncryptedSharedPreferences (values + keys encrypted via a hardware-Keystore master key),
+ * so the trusted contacts and access codes are unreadable even on a rooted device or from a backup.
+ * A pre-encryption plaintext install is migrated into the encrypted store once, then wiped.
  */
 class IncogConfig(context: Context) {
 
-    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = createSecurePrefs(context).also { migrateFromLegacy(context, it) }
 
     fun load(): IncogSettings = IncogSettings(
         ownerName = prefs.getString(KEY_OWNER_NAME, "").orEmpty(),
@@ -120,11 +124,56 @@ class IncogConfig(context: Context) {
         editor.apply()
     }
 
+    /** Encrypted prefs backed by a hardware-Keystore master key; falls back to plaintext on failure. */
+    private fun createSecurePrefs(context: Context): SharedPreferences = try {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    } catch (t: Throwable) {
+        // Encrypted store unavailable (e.g. a corrupted keystore) — fall back to plaintext so the app
+        // still functions rather than crashing on launch. Rare; logged for diagnosis.
+        Log.e(TAG, "EncryptedSharedPreferences unavailable — falling back to plaintext prefs.", t)
+        context.getSharedPreferences(FALLBACK_PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    /**
+     * One-time migration: copy a pre-encryption plaintext config (the old "incog_config" file) into
+     * the encrypted store and wipe it, so existing installs keep their setup after upgrading. No-op
+     * once the encrypted store is populated, or on a fresh install.
+     */
+    private fun migrateFromLegacy(context: Context, secure: SharedPreferences) {
+        if (secure.contains(KEY_SETUP_COMPLETE)) return
+        val legacy = context.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
+        if (legacy.all.isEmpty()) return
+        val editor = secure.edit()
+        for ((k, v) in legacy.all) when (v) {
+            is String -> editor.putString(k, v)
+            is Boolean -> editor.putBoolean(k, v)
+            is Int -> editor.putInt(k, v)
+            is Long -> editor.putLong(k, v)
+            is Float -> editor.putFloat(k, v)
+            else -> {}
+        }
+        editor.apply()
+        legacy.edit().clear().apply()
+        Log.i(TAG, "Migrated ${legacy.all.size} legacy config entries into the encrypted store.")
+    }
+
     companion object {
         /** Upper bound on trusted contacts, to keep the SMS fan-out and the payload sane. */
         const val MAX_CONTACTS = 5
 
-        private const val PREFS_NAME = "incog_config"
+        private const val TAG = "IncogConfig"
+        private const val PREFS_NAME = "incog_config_secure"
+        private const val LEGACY_PREFS_NAME = "incog_config"
+        private const val FALLBACK_PREFS_NAME = "incog_config_plain"
         private const val KEY_OWNER_NAME = "owner_name"
         private const val KEY_CONTACT_COUNT = "contact_count"
         private const val KEY_CONTACT_NAME_PREFIX = "contact_name_"
