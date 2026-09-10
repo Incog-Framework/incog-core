@@ -21,6 +21,11 @@ fun incogConfig(key: String, env: String, default: String): String =
 val backendUrl = incogConfig("incog.backendUrl", "INCOG_BACKEND_URL", "https://example.invalid/api/v1/sos")
 val agentKey = incogConfig("incog.agentKey", "INCOG_AGENT_KEY", "PLACEHOLDER-AGENT-KEY")
 
+// Release signing (gitignored keystore.properties). Absent on a clean checkout/CI — then the
+// release build is simply left unsigned rather than failing.
+val keystoreProps: Properties? = rootProject.file("keystore.properties").takeIf { it.exists() }
+    ?.let { f -> Properties().apply { f.inputStream().use(::load) } }
+
 android {
     namespace = "com.incog.mobileclient"
     compileSdk {
@@ -40,10 +45,26 @@ android {
         buildConfigField("String", "AGENT_KEY", "\"$agentKey\"")
     }
 
+    signingConfigs {
+        if (keystoreProps != null) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             optimization {
                 enable = false
+            }
+            // Sign with the release key when keystore.properties is present (sideload-ready APK);
+            // otherwise the release APK is left unsigned.
+            if (keystoreProps != null) {
+                signingConfig = signingConfigs.getByName("release")
             }
         }
     }
@@ -54,6 +75,13 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    lint {
+        // False positive: this rule targets Fragment's ActivityResult API needing fragment 1.3.0+,
+        // but registerForActivityResult here is on a ComponentActivity (androidx.activity), where the
+        // Fragment version is irrelevant. Left as an error it fails the release build's lintVital.
+        disable += "InvalidFragmentVersionForActivityResult"
     }
 }
 
