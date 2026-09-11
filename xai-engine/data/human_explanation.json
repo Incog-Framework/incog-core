@@ -1,46 +1,47 @@
 {
     "Title": "No Emergency Detected",
-    "Message": "No emergency was detected. Some signals pointed that way - unusually high acceleration - but overall confidence reached only 0.1%, below the 80% threshold required to raise an alert.",
+    "Message": "No emergency was detected. Some signals pointed that way - unusually high acceleration and a possible fall - but overall confidence reached only 0.2%, below the 80% threshold required to raise an alert.",
     "Prediction": "Normal",
-    "Confidence": 0.0015,
+    "Confidence": 0.0016,
     "EmergencyStatus": false,
     "DecisionThreshold": 0.8,
     "Reasons": [
-        "unusually high acceleration"
+        "unusually high acceleration",
+        "a possible fall"
     ],
     "TopContributingFeatures": [
         {
             "Feature": "MotionVariance",
-            "Contribution": -0.343199,
+            "Contribution": -0.217715,
             "Direction": "decreases_emergency_likelihood",
             "Description": "significant movement variance",
             "Value": 33.5643
         },
         {
             "Feature": "PeakAcceleration",
-            "Contribution": 0.339792,
+            "Contribution": 0.195452,
             "Direction": "increases_emergency_likelihood",
             "Description": "unusually high acceleration",
             "Value": 24.0967
         },
         {
-            "Feature": "GPSVelocity",
-            "Contribution": -0.002286,
-            "Direction": "decreases_emergency_likelihood",
-            "Description": "an abrupt change in movement speed",
-            "Value": 0.0
-        },
-        {
             "Feature": "PossibleFall",
-            "Contribution": -0.001985,
-            "Direction": "decreases_emergency_likelihood",
+            "Contribution": 0.016628,
+            "Direction": "increases_emergency_likelihood",
             "Description": "a possible fall",
             "Value": true
         },
         {
-            "Feature": "AudioEnergy",
-            "Contribution": 0.000724,
+            "Feature": "GPSVelocity",
+            "Contribution": 0.009006,
             "Direction": "increases_emergency_likelihood",
+            "Description": "an abrupt change in movement speed",
+            "Value": 0.0
+        },
+        {
+            "Feature": "AudioEnergy",
+            "Contribution": -0.007568,
+            "Direction": "decreases_emergency_likelihood",
             "Description": "elevated audio activity",
             "Value": 1.0
         }

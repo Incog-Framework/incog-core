@@ -1,5 +1,5 @@
 {
-    "generated_at": "2026-09-06T18:31:07.445515+00:00",
+    "generated_at": "2026-09-11T15:03:07.936736+00:00",
     "contract": {
         "formula": "clamp((20*log10(max(rms,1)/audioRmsFullScale) - floorDb) / (ceilDb - floorDb), 0, 1)",
         "full_scale": 32768.0,

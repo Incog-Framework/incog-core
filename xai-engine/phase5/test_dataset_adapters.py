@@ -252,6 +252,29 @@ def test_metadata_columns_survive_load_dataset():
     )
 
 
+def test_sensor_packets_group_by_capture_session_not_by_row():
+    """Aarush, 2026-09-11: fusion,sensor_packets must merge cleanly and each
+    capture run must be one GroupShuffleSplit group, or overlapping windows
+    from one ~45-60s run leak across train/test and every metric on real
+    packets comes out optimistic.
+    """
+
+    if not _available("sensor_packets"):
+        _skip("sensor_packets")
+        return
+
+    frame, provenance = load_dataset("sensor_packets")
+
+    assert "Subject" in frame.columns, (
+        "sensor_packets rows must carry a Subject (session) column so they "
+        "concatenate cleanly with fusion's Subject/Activity shape and so "
+        "GroupShuffleSplit can hold out whole capture runs"
+    )
+    assert frame["Subject"].nunique() == provenance["sessions"]
+    # one row per packet, several packets per session - never one session per row
+    assert len(frame) > frame["Subject"].nunique()
+
+
 def test_real_peaks_are_physically_plausible():
     """A sanity check on the unit conversions across every real corpus."""
 
@@ -369,6 +392,7 @@ if __name__ == "__main__":
         test_uci_har_is_negatives_only_with_subjects_and_activities,
         test_real_corpora_leave_unmeasured_channels_as_nan,
         test_metadata_columns_survive_load_dataset,
+        test_sensor_packets_group_by_capture_session_not_by_row,
         test_fusion_pairs_real_motion_with_ravdess_audio_and_flags_it_honestly,
         test_fusion_gps_velocity_is_not_correlated_with_the_label,
         test_real_peaks_are_physically_plausible,
