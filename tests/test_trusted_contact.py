@@ -405,6 +405,158 @@ def test_alert_still_reaches_the_channel_with_no_contacts_anywhere(monkeypatch):
     assert recipients_of(d) == []
 
 
+# --------------------------------------------------------------------------
+# Multiple trusted contacts
+# --------------------------------------------------------------------------
+def aarush_payload(**overrides):
+    """
+    The exact shape EvidenceUploader.buildBody produces: the full list in
+    `contacts`, with contact #1 ALSO mirrored into the legacy single fields so
+    a backend that only reads those still alerts somebody.
+    """
+    body = payload(
+        contact_name="Amma",
+        contact_phone="+918618065357",
+        contact_sms_sent=True,
+        contacts=[
+            {"name": "Amma", "phone": "+918618065357", "sms_sent": True},
+            {"name": "Appa", "phone": "+919876543210", "sms_sent": False},
+        ],
+    )
+    body.update(overrides)
+    return body
+
+
+def test_the_clients_real_payload_resolves_to_both_contacts():
+    resolved = SOSPayload(**aarush_payload()).resolved_contacts()
+    assert [c["phone"] for c in resolved] == ["+918618065357", "+919876543210"]
+
+
+def test_the_legacy_mirror_does_not_double_alert_contact_one():
+    """
+    The client mirrors contact #1 into contact_phone. If both were honoured
+    that person would be texted twice for one emergency.
+    """
+    resolved = SOSPayload(**aarush_payload()).resolved_contacts()
+    assert len(resolved) == 2
+    assert [c["phone"] for c in resolved].count("+918618065357") == 1
+
+
+def test_array_wins_over_the_legacy_fields():
+    parsed = SOSPayload(
+        **payload(
+            contact_phone="+911111111111",
+            contacts=[{"phone": "+922222222222"}],
+        )
+    )
+    assert [c["phone"] for c in parsed.resolved_contacts()] == ["+922222222222"]
+
+
+def test_legacy_fields_used_when_the_array_is_absent():
+    """Older APKs send no array at all."""
+    parsed = SOSPayload(**payload(contact_name="Amma", contact_phone="+918618065357"))
+    assert parsed.resolved_contacts() == [
+        {"name": "Amma", "phone": "+918618065357", "sms_sent": None}
+    ]
+
+
+def test_duplicates_inside_the_array_are_collapsed():
+    parsed = SOSPayload(
+        **payload(
+            contacts=[
+                {"name": "Amma", "phone": "+91 86180 65357"},
+                {"name": "Mum", "phone": "+918618065357"},
+            ]
+        )
+    )
+    assert len(parsed.resolved_contacts()) == 1
+
+
+def test_array_phones_are_normalised():
+    parsed = SOSPayload(**payload(contacts=[{"phone": "+91 86180 65357"}]))
+    assert parsed.resolved_contacts()[0]["phone"] == "+918618065357"
+
+
+def test_a_malformed_phone_in_the_array_is_rejected():
+    with pytest.raises(ValidationError):
+        SOSPayload(**payload(contacts=[{"phone": "+918618065357"}, {"phone": "nope"}]))
+
+
+def test_contact_list_is_capped():
+    """
+    Without a ceiling, anyone holding the API key could post thousands of
+    numbers and use the alert path as a free SMS relay.
+    """
+    ten = [{"phone": f"+9111111111{i:02d}"} for i in range(10)]
+    assert len(SOSPayload(**payload(contacts=ten)).resolved_contacts()) == 10
+
+    with pytest.raises(ValidationError):
+        SOSPayload(**payload(contacts=ten + [{"phone": "+919999999999"}]))
+
+
+def test_all_contacts_are_alerted(monkeypatch):
+    d = build_dispatcher(monkeypatch, contacts="")
+    d.dispatch_alert(
+        device_id="demo-device-01",
+        latitude=12.9412,
+        longitude=77.5652,
+        contacts=SOSPayload(**aarush_payload()).resolved_contacts(),
+    )
+    assert recipients_of(d) == ["+918618065357", "+919876543210"]
+
+
+def test_message_lists_every_contact_with_its_own_status(monkeypatch):
+    d = build_dispatcher(monkeypatch, contacts="")
+    d.dispatch_alert(
+        device_id="demo-device-01",
+        latitude=12.9412,
+        longitude=77.5652,
+        contacts=SOSPayload(**aarush_payload()).resolved_contacts(),
+    )
+    body = d.twilio_client.sent[0]["body"]
+    assert "Trusted contacts:" in body
+    assert "Amma +918618065357 (device already texted them)" in body
+    assert "Appa +919876543210 (DEVICE COULD NOT TEXT THEM - CALL THEM)" in body
+
+
+def test_single_contact_keeps_the_singular_wording(monkeypatch):
+    d = build_dispatcher(monkeypatch, contacts="")
+    d.dispatch_alert(
+        device_id="demo-device-01",
+        latitude=12.9412,
+        longitude=77.5652,
+        contacts=[{"name": "Amma", "phone": "+918618065357", "sms_sent": True}],
+    )
+    assert "Trusted contact: Amma" in d.twilio_client.sent[0]["body"]
+    assert "Trusted contacts:" not in d.twilio_client.sent[0]["body"]
+
+
+def test_webhook_carries_the_whole_list(monkeypatch):
+    d = build_dispatcher(monkeypatch, contacts="", webhook=True)
+    captured = {}
+    monkeypatch.setattr(d, "_send_webhook", lambda p: captured.update(p) or True)
+    d.dispatch_alert(
+        device_id="demo-device-01",
+        latitude=12.9412,
+        longitude=77.5652,
+        contacts=SOSPayload(**aarush_payload()).resolved_contacts(),
+    )
+    assert len(captured["contacts"]) == 2
+    # First contact still mirrored into the legacy keys for existing consumers.
+    assert captured["contact_phone"] == "+918618065357"
+
+
+def test_one_unreachable_contact_does_not_stop_the_rest(monkeypatch):
+    d = build_dispatcher(monkeypatch, contacts="", fail_for="+918618065357")
+    d.dispatch_alert(
+        device_id="demo-device-01",
+        latitude=12.9412,
+        longitude=77.5652,
+        contacts=SOSPayload(**aarush_payload()).resolved_contacts(),
+    )
+    assert recipients_of(d) == ["+919876543210"]
+
+
 def test_backend_still_alerts_the_contact_even_if_the_device_already_did(monkeypatch):
     """
     Redundancy is the point: a duplicate message is a trivial cost next to a

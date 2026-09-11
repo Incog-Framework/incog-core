@@ -240,44 +240,64 @@ class AlertDispatcher:
         contact_name: Optional[str] = None,
         contact_phone: Optional[str] = None,
         contact_sms_sent: Optional[bool] = None,
+        contacts: Optional[list] = None,
     ):
         """
         Fan one alert out to the server-configured contacts, the webhook, and
-        the user's own trusted contact when the signal carried one.
+        every trusted contact the signal carried.
 
-        The user's contact is additional to the configured ones, never a
+        The user's contacts are additional to the configured ones, never a
         replacement: whoever monitors the channel still needs to see every
         emergency.
 
-        The device SMSes that contact itself over the cellular network, which
+        The device SMSes those contacts itself over the cellular network, which
         reaches them where data does not. This backend path is the redundant
         one, for when the phone is taken, destroyed or out of credit -- so the
-        alert states whether the device already got through, because that is
-        the difference between "someone is with her" and "call them now".
+        alert states, per contact, whether the device already got through.
+        That is the difference between "someone is with her" and "call them".
+
+        Accepts either `contacts` (a list of {name, phone, sms_sent}) or the
+        legacy single contact_* arguments, so older clients keep working.
         """
-        # A signal can carry its own contact even when the server has none
+        resolved = list(contacts) if contacts else []
+        if not resolved and contact_phone:
+            resolved = [
+                {
+                    "name": contact_name,
+                    "phone": contact_phone,
+                    "sms_sent": contact_sms_sent,
+                }
+            ]
+
+        # A signal can carry its own contacts even when the server has none
         # configured, so that alone is reason enough to dispatch.
-        if not self.emergency_contacts and not self.enable_webhook and not contact_phone:
+        if not self.emergency_contacts and not self.enable_webhook and not resolved:
             logger.info("No dispatch channels configured; alert not sent")
             return
 
         timestamp = _utcnow().isoformat()
         maps_url = f"https://maps.google.com/?q={latitude},{longitude}"
 
-        # Responders monitoring the channel need the real number to call, so
-        # this line is unredacted -- unlike the logs.
-        contact_line = ""
-        if contact_phone:
-            if contact_sms_sent is True:
+        def describe(contact: dict) -> str:
+            sent = contact.get("sms_sent")
+            if sent is True:
                 delivery = "device already texted them"
-            elif contact_sms_sent is False:
+            elif sent is False:
                 delivery = "DEVICE COULD NOT TEXT THEM - CALL THEM"
             else:
                 delivery = "unknown whether the device texted them"
-            contact_line = (
-                f"Trusted contact: {contact_name or 'unnamed'} {contact_phone}"
-                f" ({delivery})\n"
-            )
+            name = contact.get("name") or "unnamed"
+            return f"{name} {contact['phone']} ({delivery})"
+
+        # Responders monitoring the channel need the real numbers to call, so
+        # these lines are unredacted -- unlike the logs.
+        if not resolved:
+            contact_line = ""
+        elif len(resolved) == 1:
+            contact_line = f"Trusted contact: {describe(resolved[0])}\n"
+        else:
+            listed = "\n".join(f"  {describe(c)}" for c in resolved)
+            contact_line = f"Trusted contacts:\n{listed}\n"
 
         alert_message = message or (
             f"[Incog] {alert_type}\n"
@@ -301,20 +321,26 @@ class AlertDispatcher:
             "latitude": latitude,
             "longitude": longitude,
             "maps_url": maps_url,
-            "contact_name": contact_name,
-            "contact_phone": contact_phone,
-            "contact_sms_sent": contact_sms_sent,
+            # The full list, plus the first contact mirrored into the legacy
+            # keys so existing webhook consumers keep working.
+            "contacts": resolved,
+            "contact_name": resolved[0]["name"] if resolved else None,
+            "contact_phone": resolved[0]["phone"] if resolved else None,
+            "contact_sms_sent": resolved[0].get("sms_sent") if resolved else None,
             "message": alert_message,
         }
 
-        # Dedupe so a user whose contact is also a server contact is not texted
-        # twice about the same emergency.
+        # Dedupe so a contact that is also a server contact, or that appears
+        # twice in the list, is not texted twice about the same emergency.
         recipients = list(self.emergency_contacts)
-        if contact_phone and contact_phone not in recipients:
-            recipients.append(contact_phone)
+        for contact in resolved:
+            phone = contact["phone"]
+            if phone not in recipients:
+                recipients.append(phone)
+        if resolved:
             logger.info(
-                f"Alert includes the signal's trusted contact "
-                f"{redact_phone(contact_phone)}"
+                f"Alert includes {len(resolved)} trusted contact(s): "
+                + ", ".join(redact_phone(c["phone"]) for c in resolved)
             )
 
         # _send_message never raises, so one unreachable recipient cannot stop
@@ -468,9 +494,9 @@ def trigger_sos(
             latitude=payload.latitude,
             longitude=payload.longitude,
             alert_type="EMERGENCY",
-            contact_name=payload.contact_name,
-            contact_phone=payload.contact_phone,
-            contact_sms_sent=payload.contact_sms_sent,
+            # Resolves the contacts array, or the legacy single fields for
+            # older clients, into one deduplicated list.
+            contacts=payload.resolved_contacts(),
         )
 
         evidence_stored = False

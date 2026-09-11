@@ -120,10 +120,40 @@ existing clients keep working, but it logs a deprecation warning.
   "longitude": 77.5652,
   "is_stealth_active": true,
   "encrypted_evidence": "<base64, optional>",
+  "contacts": [
+    {"name": "Amma", "phone": "+918618065357", "sms_sent": true},
+    {"name": "Appa", "phone": "+919876543210", "sms_sent": false}
+  ],
   "contact_name": "Amma",
   "contact_phone": "+918618065357",
   "contact_sms_sent": true
 }
+```
+
+### One contact or several
+
+A user can configure several trusted contacts. The client sends them all in
+`contacts`, and **also mirrors the first into the legacy
+`contact_name`/`contact_phone`/`contact_sms_sent` fields** so a backend reading
+only those still alerts somebody.
+
+- When `contacts` is present it wins; the legacy fields are used only when it
+  is absent, so older APKs keep working unchanged.
+- The list is **deduplicated by phone**, which is what stops the legacy mirror
+  of contact #1 causing a double alert.
+- Capped at **10** contacts (`MAX_TRUSTED_CONTACTS`). Without a ceiling anyone
+  holding the API key could post thousands of numbers and use the alert path as
+  a free SMS relay.
+- Each entry is `{name?, phone, sms_sent?}`. `phone` is required and validated
+  exactly like `contact_phone`; a malformed one in the array is a 422 for the
+  whole request, same as the single field.
+
+With several contacts the alert lists each with its own delivery status:
+
+```
+Trusted contacts:
+  Amma +918618065357 (device already texted them)
+  Appa +919876543210 (DEVICE COULD NOT TEXT THEM - CALL THEM)
 ```
 
 ### Whose contact gets alerted

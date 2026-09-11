@@ -193,10 +193,10 @@ def test_signal_with_a_trusted_contact_is_accepted(client):
         headers={"X-Incog-Key": API_KEY},
     )
     assert response.status_code == 200
-    dispatched = client.dispatched[0]
-    assert dispatched["contact_name"] == "Amma"
     # Normalised on the way through, ready to hand to Twilio.
-    assert dispatched["contact_phone"] == "+918618065357"
+    assert client.dispatched[0]["contacts"] == [
+        {"name": "Amma", "phone": "+918618065357", "sms_sent": None}
+    ]
 
 
 def test_signal_without_a_contact_behaves_as_before(client):
@@ -205,9 +205,7 @@ def test_signal_without_a_contact_behaves_as_before(client):
         "/api/v1/sos", json=sos_body(), headers={"X-Incog-Key": API_KEY}
     )
     assert response.status_code == 200
-    dispatched = client.dispatched[0]
-    assert dispatched["contact_name"] is None
-    assert dispatched["contact_phone"] is None
+    assert client.dispatched[0]["contacts"] == []
 
 
 def test_empty_contact_fields_do_not_reject_the_signal(client):
@@ -221,7 +219,7 @@ def test_empty_contact_fields_do_not_reject_the_signal(client):
         headers={"X-Incog-Key": API_KEY},
     )
     assert response.status_code == 200
-    assert client.dispatched[0]["contact_phone"] is None
+    assert client.dispatched[0]["contacts"] == []
 
 
 @pytest.mark.parametrize("bad_phone", ["not-a-phone", "12345", "555-CALL-NOW", "+"])

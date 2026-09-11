@@ -7,7 +7,7 @@ standing up Postgres/PostGIS.
 
 import re
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -20,6 +20,56 @@ _PHONE_RE = re.compile(r"^\+?[0-9]{7,15}$")
 
 # Humans type numbers with these; strip them rather than 422 a valid number.
 _PHONE_SEPARATORS = " \t-()./"
+
+# Nobody has more trusted contacts than this, and without a ceiling anyone
+# holding the API key could post thousands of numbers and use the alert path
+# as a free SMS relay.
+MAX_TRUSTED_CONTACTS = 10
+
+
+def _normalise_phone(value: str) -> str:
+    """Strip human separators, then require '+' and 7-15 digits."""
+    compact = value
+    for separator in _PHONE_SEPARATORS:
+        compact = compact.replace(separator, "")
+    if not _PHONE_RE.match(compact):
+        raise ValueError(
+            "phone must be 7-15 digits, optionally prefixed with '+'"
+        )
+    return compact
+
+
+def _blank_to_none(value):
+    """Empty/whitespace strings mean "not configured", not "invalid"."""
+    if isinstance(value, str) and not value.strip():
+        return None
+    return value
+
+
+class TrustedContact(BaseModel):
+    """One person the owner chose to be alerted, from the app's setup screen."""
+
+    name: Optional[str] = Field(None, max_length=100)
+    phone: str = Field(..., max_length=20)
+
+    # Whether the device's own SMS to this contact got through.
+    # None = the device did not try; False = it tried and failed.
+    sms_sent: Optional[bool] = None
+
+    @field_validator("name", "sms_sent", mode="before")
+    @classmethod
+    def blank_is_absent(cls, v):
+        return _blank_to_none(v)
+
+    @field_validator("name")
+    @classmethod
+    def tidy_name(cls, v: Optional[str]) -> Optional[str]:
+        return " ".join(v.split()) if v else None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        return _normalise_phone(v)
 
 
 class SOSPayload(BaseModel):
@@ -49,6 +99,44 @@ class SOSPayload(BaseModel):
     # older client that does not report it.
     contact_sms_sent: Optional[bool] = None
 
+    # The full list. Newer clients send every configured contact here and also
+    # mirror the first into the three legacy fields above, so a backend that
+    # only reads those still alerts somebody. When this is present it wins.
+    contacts: Optional[List[TrustedContact]] = Field(
+        None, max_length=MAX_TRUSTED_CONTACTS
+    )
+
+    def resolved_contacts(self) -> List[dict]:
+        """
+        The contacts to alert, from whichever form the client sent.
+
+        Prefers the array; falls back to the legacy single fields so older
+        APKs keep working unchanged. Deduplicated by phone number, preserving
+        order, so the legacy mirror of contact #1 cannot cause a double alert.
+        """
+        if self.contacts:
+            candidates = [
+                {"name": c.name, "phone": c.phone, "sms_sent": c.sms_sent}
+                for c in self.contacts
+            ]
+        elif self.contact_phone:
+            candidates = [
+                {
+                    "name": self.contact_name,
+                    "phone": self.contact_phone,
+                    "sms_sent": self.contact_sms_sent,
+                }
+            ]
+        else:
+            return []
+
+        seen, unique = set(), []
+        for contact in candidates:
+            if contact["phone"] not in seen:
+                seen.add(contact["phone"])
+                unique.append(contact)
+        return unique
+
     @field_validator("device_id")
     @classmethod
     def validate_device_id(cls, v: str) -> str:
@@ -70,33 +158,20 @@ class SOSPayload(BaseModel):
         someone who never filled in the setup screen is the worst possible
         failure mode here.
         """
-        if isinstance(v, str) and not v.strip():
-            return None
-        return v
+        return _blank_to_none(v)
 
     @field_validator("contact_name")
     @classmethod
     def tidy_contact_name(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return None
         # Collapse newlines/runs of whitespace: this goes into SMS and Discord
         # bodies, where a stray newline would break the message layout.
-        return " ".join(v.split())
+        return " ".join(v.split()) if v else None
 
     @field_validator("contact_phone")
     @classmethod
     def validate_contact_phone(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return None
-        compact = v
-        for separator in _PHONE_SEPARATORS:
-            compact = compact.replace(separator, "")
-        if not _PHONE_RE.match(compact):
-            raise ValueError(
-                "contact_phone must be 7-15 digits, optionally prefixed with '+'"
-            )
-        # Store the normalised form -- it is what gets handed to Twilio.
-        return compact
+        # Normalised on the way through -- this is what gets handed to Twilio.
+        return _normalise_phone(v) if v is not None else None
 
 
 class SOSResponse(BaseModel):
