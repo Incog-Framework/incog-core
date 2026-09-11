@@ -1,0 +1,316 @@
+{
+    "generated_at": "2026-09-11T14:43:35.053837+00:00",
+    "model": "data\\emergency_model.tflite",
+    "random_seed": 42,
+    "test_size": 0.2,
+    "real_sessions_total": 18,
+    "real_sessions_held_out": [
+        "SESS-5262516D",
+        "SESS-52BAF49D",
+        "SESS-93CA14AF"
+    ],
+    "real_sessions_seen_in_training": [
+        "SESS-04AAD917",
+        "SESS-14F8ACDC",
+        "SESS-4293F147",
+        "SESS-43516967",
+        "SESS-604B79E1",
+        "SESS-726CE2A4",
+        "SESS-7C59D371",
+        "SESS-8BC1F740",
+        "SESS-A0DCBA0A",
+        "SESS-AB63EC81",
+        "SESS-AB8F3D39",
+        "SESS-AFD525F1",
+        "SESS-C2592581",
+        "SESS-EA29CFB5",
+        "SESS-F3DB59D8"
+    ],
+    "real_packets_total": 572,
+    "held_out": {
+        "packets": 88,
+        "sessions": 3,
+        "at_classification_0.50": {
+            "threshold": 0.5,
+            "confusion_matrix": [
+                [
+                    53,
+                    10
+                ],
+                [
+                    11,
+                    14
+                ]
+            ],
+            "confusion_matrix_layout": "[[TN, FP], [FN, TP]]",
+            "false_positive_rate": 0.1587,
+            "recall": 0.56,
+            "precision": 0.5833,
+            "negatives": 63,
+            "positives": 25
+        },
+        "at_dispatch_0.80": {
+            "threshold": 0.8,
+            "confusion_matrix": [
+                [
+                    58,
+                    5
+                ],
+                [
+                    15,
+                    10
+                ]
+            ],
+            "confusion_matrix_layout": "[[TN, FP], [FN, TP]]",
+            "false_positive_rate": 0.0794,
+            "recall": 0.4,
+            "precision": 0.6667,
+            "negatives": 63,
+            "positives": 25
+        },
+        "recall_by_gps_bin_at_0.80": [
+            {
+                "bin": "stationary (<0.3 m/s)",
+                "windows": 25,
+                "recall": 0.4
+            },
+            {
+                "bin": "walk-ish (0.3-1.5 m/s)",
+                "windows": 0,
+                "recall": null
+            },
+            {
+                "bin": "fleeing-speed (>=1.5 m/s)",
+                "windows": 0,
+                "recall": null
+            }
+        ],
+        "recall_by_gps_bin_at_0.50": [
+            {
+                "bin": "stationary (<0.3 m/s)",
+                "windows": 25,
+                "recall": 0.56
+            },
+            {
+                "bin": "walk-ish (0.3-1.5 m/s)",
+                "windows": 0,
+                "recall": null
+            },
+            {
+                "bin": "fleeing-speed (>=1.5 m/s)",
+                "windows": 0,
+                "recall": null
+            }
+        ]
+    },
+    "seen_in_training": {
+        "packets": 484,
+        "sessions": 15,
+        "at_classification_0.50": {
+            "threshold": 0.5,
+            "confusion_matrix": [
+                [
+                    219,
+                    53
+                ],
+                [
+                    46,
+                    166
+                ]
+            ],
+            "confusion_matrix_layout": "[[TN, FP], [FN, TP]]",
+            "false_positive_rate": 0.1949,
+            "recall": 0.783,
+            "precision": 0.758,
+            "negatives": 272,
+            "positives": 212
+        },
+        "at_dispatch_0.80": {
+            "threshold": 0.8,
+            "confusion_matrix": [
+                [
+                    263,
+                    9
+                ],
+                [
+                    89,
+                    123
+                ]
+            ],
+            "confusion_matrix_layout": "[[TN, FP], [FN, TP]]",
+            "false_positive_rate": 0.0331,
+            "recall": 0.5802,
+            "precision": 0.9318,
+            "negatives": 272,
+            "positives": 212
+        },
+        "recall_by_gps_bin_at_0.80": [
+            {
+                "bin": "stationary (<0.3 m/s)",
+                "windows": 44,
+                "recall": 0.3409
+            },
+            {
+                "bin": "walk-ish (0.3-1.5 m/s)",
+                "windows": 86,
+                "recall": 0.4186
+            },
+            {
+                "bin": "fleeing-speed (>=1.5 m/s)",
+                "windows": 82,
+                "recall": 0.878
+            }
+        ],
+        "recall_by_gps_bin_at_0.50": [
+            {
+                "bin": "stationary (<0.3 m/s)",
+                "windows": 44,
+                "recall": 0.6136
+            },
+            {
+                "bin": "walk-ish (0.3-1.5 m/s)",
+                "windows": 86,
+                "recall": 0.686
+            },
+            {
+                "bin": "fleeing-speed (>=1.5 m/s)",
+                "windows": 82,
+                "recall": 0.9756
+            }
+        ]
+    },
+    "all_real_packets": {
+        "packets": 572,
+        "sessions": 18,
+        "at_classification_0.50": {
+            "threshold": 0.5,
+            "confusion_matrix": [
+                [
+                    272,
+                    63
+                ],
+                [
+                    57,
+                    180
+                ]
+            ],
+            "confusion_matrix_layout": "[[TN, FP], [FN, TP]]",
+            "false_positive_rate": 0.1881,
+            "recall": 0.7595,
+            "precision": 0.7407,
+            "negatives": 335,
+            "positives": 237
+        },
+        "at_dispatch_0.80": {
+            "threshold": 0.8,
+            "confusion_matrix": [
+                [
+                    321,
+                    14
+                ],
+                [
+                    104,
+                    133
+                ]
+            ],
+            "confusion_matrix_layout": "[[TN, FP], [FN, TP]]",
+            "false_positive_rate": 0.0418,
+            "recall": 0.5612,
+            "precision": 0.9048,
+            "negatives": 335,
+            "positives": 237
+        },
+        "recall_by_gps_bin_at_0.80": [
+            {
+                "bin": "stationary (<0.3 m/s)",
+                "windows": 69,
+                "recall": 0.3623
+            },
+            {
+                "bin": "walk-ish (0.3-1.5 m/s)",
+                "windows": 86,
+                "recall": 0.4186
+            },
+            {
+                "bin": "fleeing-speed (>=1.5 m/s)",
+                "windows": 82,
+                "recall": 0.878
+            }
+        ],
+        "recall_by_gps_bin_at_0.50": [
+            {
+                "bin": "stationary (<0.3 m/s)",
+                "windows": 69,
+                "recall": 0.5942
+            },
+            {
+                "bin": "walk-ish (0.3-1.5 m/s)",
+                "windows": 86,
+                "recall": 0.686
+            },
+            {
+                "bin": "fleeing-speed (>=1.5 m/s)",
+                "windows": 82,
+                "recall": 0.9756
+            }
+        ]
+    },
+    "by_scenario": [
+        {
+            "scenario": "distress-still",
+            "label": "emergency",
+            "windows": 49,
+            "gps_median": 0.074,
+            "fire_rate_at_0.80": 0.4286,
+            "includes_held_out_session": true
+        },
+        {
+            "scenario": "fleeing-sprint",
+            "label": "emergency",
+            "windows": 95,
+            "gps_median": 2.3,
+            "fire_rate_at_0.80": 0.7579,
+            "includes_held_out_session": false
+        },
+        {
+            "scenario": "fleeing-walk",
+            "label": "emergency",
+            "windows": 93,
+            "gps_median": 0.498,
+            "fire_rate_at_0.80": 0.4301,
+            "includes_held_out_session": false
+        },
+        {
+            "scenario": "jog-calm",
+            "label": "normal",
+            "windows": 101,
+            "gps_median": 1.796,
+            "fire_rate_at_0.80": 0.0495,
+            "includes_held_out_session": false
+        },
+        {
+            "scenario": "loud-calm-still",
+            "label": "normal",
+            "windows": 57,
+            "gps_median": 0.087,
+            "fire_rate_at_0.80": 0.0351,
+            "includes_held_out_session": true
+        },
+        {
+            "scenario": "passenger",
+            "label": "normal",
+            "windows": 69,
+            "gps_median": 4.28,
+            "fire_rate_at_0.80": 0.0,
+            "includes_held_out_session": false
+        },
+        {
+            "scenario": "walk-calm",
+            "label": "normal",
+            "windows": 108,
+            "gps_median": 0.837,
+            "fire_rate_at_0.80": 0.0648,
+            "includes_held_out_session": true
+        }
+    ]
+}
