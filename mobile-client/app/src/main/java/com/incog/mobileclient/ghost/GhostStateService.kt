@@ -23,6 +23,8 @@ import com.incog.incogsecuritycore.GPSData
 import com.incog.incogsecuritycore.SecurityOrchestrator
 import com.incog.mobileclient.ai.AiResult
 import com.incog.mobileclient.ai.EmergencyClassifier
+import com.incog.mobileclient.alert.ContactAlerter
+import com.incog.mobileclient.config.IncogConfig
 import com.incog.mobileclient.handoff.SensorPacket
 import com.incog.mobileclient.network.EvidenceUploader
 import com.incog.mobileclient.sensors.AudioBufferCollector
@@ -33,6 +35,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.io.File
 import java.util.UUID
 
 /**
@@ -65,6 +70,11 @@ class GhostStateService : Service() {
     // Phase 4-6 on-device AI (Decision 2). Fires the Phase 7 handoff once per session.
     private var classifier: EmergencyClassifier? = null
     private var emergencyHandled = false
+
+    // Non-null only while capture mode is on: accumulates this session's packets, flushed to a
+    // JSON file on stand-down (model-training data collection — see CAPTURE_PROTOCOL.md). Off by
+    // default; the production app persists nothing to disk.
+    private var captureBuffer: MutableList<SensorPacket>? = null
 
     // Phase 7-11 handoff runs off the main thread and must outlive a single snapshot tick.
     private val emergencyScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -125,13 +135,17 @@ class GhostStateService : Service() {
             null
         }
 
+        val capturing = IncogConfig(this).load().captureMode
+        captureBuffer = if (capturing) mutableListOf() else null
+
         startSnapshotLogging()
-        Log.i(TAG, "Ghost State ACTIVATED — SessionID=$sessionId (mic=$micStarted, gps=$gpsStarted, ai=${classifier != null})")
+        Log.i(TAG, "Ghost State ACTIVATED — SessionID=$sessionId (mic=$micStarted, gps=$gpsStarted, ai=${classifier != null}, capture=$capturing)")
     }
 
     private fun stopSession() {
         Log.i(TAG, "Ghost State DEACTIVATED — SessionID=$currentSessionId")
         stopSnapshotLogging()
+        flushCapture(currentSessionId)
         sensorCollector?.stop(); sensorCollector = null
         locationCollector?.stop(); locationCollector = null
         audioCollector?.stop(); audioCollector = null
@@ -141,6 +155,25 @@ class GhostStateService : Service() {
         currentSessionId = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    /**
+     * Writes this session's accumulated packets to one JSON file (one run = one file, per the
+     * capture protocol). No-op unless capture mode was on and packets were collected. Files land in
+     * the app's external files dir so they can be pulled with `adb pull` without root.
+     */
+    private fun flushCapture(sessionId: String?) {
+        val packets = captureBuffer ?: return
+        captureBuffer = null
+        if (packets.isEmpty() || sessionId == null) return
+        try {
+            val dir = File(getExternalFilesDir(null), CAPTURE_DIR).apply { mkdirs() }
+            val file = File(dir, "capture-$sessionId-${packets.first().timestampMs}.json")
+            file.writeText(captureJson.encodeToString(packets))
+            Log.i(TAG, "Capture saved: ${file.absolutePath} (${packets.size} packets)")
+        } catch (t: Throwable) {
+            Log.e(TAG, "Failed to write capture file.", t)
+        }
     }
 
     private fun enterForeground() {
@@ -207,6 +240,7 @@ class GhostStateService : Service() {
                 "audioMs=${packet.audioBufferedMs} accelN=${packet.accelSamples.size} " +
                 "gyroN=${packet.gyroSamples.size}"
         )
+        captureBuffer?.add(packet)
         runInference(packet)
     }
 
@@ -220,12 +254,23 @@ class GhostStateService : Service() {
         )
         if (result.emergencyStatus && !emergencyHandled) {
             emergencyHandled = true
-            Log.w(
-                TAG,
-                "EMERGENCY CONFIRMED (confidence ${"%.4f".format(result.confidence)} >= " +
-                    "${result.decisionThreshold}) — running Phase 7-11 handoff. SessionID=${result.sessionId}"
-            )
-            handleEmergency(result, packet)
+            // Capture mode is for staging emergencies to collect TRAINING data — they aren't real,
+            // so suppress the whole alert pipeline (no SMS to contacts, no backend upload). The
+            // session is still recorded to the capture file; only the alerting is skipped.
+            if (captureBuffer != null) {
+                Log.w(
+                    TAG,
+                    "EMERGENCY CONFIRMED (confidence ${"%.4f".format(result.confidence)}) — " +
+                        "CAPTURE MODE: alert suppressed, recording only. SessionID=${result.sessionId}"
+                )
+            } else {
+                Log.w(
+                    TAG,
+                    "EMERGENCY CONFIRMED (confidence ${"%.4f".format(result.confidence)} >= " +
+                        "${result.decisionThreshold}) — running Phase 7-11 handoff. SessionID=${result.sessionId}"
+                )
+                handleEmergency(result, packet)
+            }
         }
     }
 
@@ -278,7 +323,29 @@ class GhostStateService : Service() {
                 return@launch
             }
             val blobBase64 = Base64.encodeToString(pipeline.encryptedBlob, Base64.NO_WRAP)
-            val ok = EvidenceUploader.upload(deviceId, latitude, longitude, blobBase64)
+
+            // Hybrid dispatch: the phone texts ALL the user's trusted contacts itself (PRIMARY
+            // path), then reports the results to the backend (REDUNDANT path). Read IncogConfig now,
+            // not at service start, so contacts edited mid-session are honoured. SMS goes FIRST
+            // because it is time-critical and must not queue behind the free-tier backend's cold start.
+            val config = IncogConfig(this@GhostStateService).load()
+            val smsResults = ContactAlerter.sendAll(
+                context = this@GhostStateService,
+                contacts = config.contacts,
+                ownerName = config.ownerName,
+                latitude = latitude,
+                longitude = longitude
+            )
+            val sentCount = smsResults.count { it.smsSent }
+            Log.i(TAG, "Contact SMS: $sentCount/${smsResults.size} sent.")
+
+            val ok = EvidenceUploader.upload(
+                deviceId = deviceId,
+                latitude = latitude,
+                longitude = longitude,
+                encryptedEvidenceBase64 = blobBase64,
+                contacts = smsResults
+            )
             Log.i(TAG, "Evidence upload ${if (ok) "succeeded" else "FAILED"} for ${result.sessionId}")
         }
     }
@@ -326,6 +393,11 @@ class GhostStateService : Service() {
         private const val CHANNEL_ID = "general_background"
         private const val NOTIFICATION_ID = 1001
         private const val SNAPSHOT_INTERVAL_MS = 2000L
+
+        // Capture-mode output (data collection). Pretty-printed for easy inspection; default field
+        // names (no @SerialName) so xai-engine's SensorPacket loader reads it directly.
+        private const val CAPTURE_DIR = "captures"
+        private val captureJson = Json { prettyPrint = true }
 
         const val ACTION_STOP = "com.incog.mobileclient.ghost.action.STOP"
 

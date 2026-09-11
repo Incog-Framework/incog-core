@@ -73,6 +73,9 @@ class MainActivity : ComponentActivity() {
             add(Manifest.permission.RECORD_AUDIO)
             add(Manifest.permission.ACCESS_FINE_LOCATION)
             add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            // Hybrid dispatch: the device texts the trusted contact itself. Dangerous permission —
+            // needs a runtime grant or the SMS silently won't send.
+            add(Manifest.permission.SEND_SMS)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 add(Manifest.permission.POST_NOTIFICATIONS)
             }

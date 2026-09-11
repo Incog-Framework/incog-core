@@ -2,6 +2,7 @@ package com.incog.mobileclient.handoff
 
 import com.incog.mobileclient.sensors.LocationReading
 import com.incog.mobileclient.sensors.Vec3Reading
+import kotlinx.serialization.Serializable
 
 /**
  * Phase 3 output — the Aarush -> Lipika handoff contract (Phase 3 -> Phase 4).
@@ -14,6 +15,7 @@ import com.incog.mobileclient.sensors.Vec3Reading
  * NOTE: keep this shape stable — `xai-engine` depends on it. Schema changes are a cross-team
  * conversation, not a unilateral edit. (See mobile-client/CLAUDE.md.)
  */
+@Serializable
 data class SensorPacket(
     val sessionId: String,
     val timestampMs: Long,

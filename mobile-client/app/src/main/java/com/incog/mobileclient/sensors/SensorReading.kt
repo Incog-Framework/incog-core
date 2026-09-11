@@ -1,6 +1,9 @@
 package com.incog.mobileclient.sensors
 
+import kotlinx.serialization.Serializable
+
 /** A single 3-axis sensor sample (accelerometer or gyroscope), device time-stamped. */
+@Serializable
 data class Vec3Reading(
     val timestampMs: Long,
     val x: Float,
@@ -9,6 +12,7 @@ data class Vec3Reading(
 )
 
 /** A single location fix. */
+@Serializable
 data class LocationReading(
     val timestampMs: Long,
     val latitude: Double,

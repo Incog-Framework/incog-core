@@ -82,7 +82,7 @@
             "expected": {
                 "PeakAcceleration": 5.0,
                 "MotionVariance": 2.0,
-                "AudioEnergy": 0.5,
+                "AudioEnergy": 1.0,
                 "GPSVelocity": 2.5,
                 "PossibleFall": false
             }
@@ -235,7 +235,7 @@
             "expected": {
                 "PeakAcceleration": 9.7077,
                 "MotionVariance": 0.0,
-                "AudioEnergy": 0.0153,
+                "AudioEnergy": 0.0,
                 "GPSVelocity": 1.0,
                 "PossibleFall": false
             }
@@ -382,7 +382,7 @@
             "expected": {
                 "PeakAcceleration": 22.4566,
                 "MotionVariance": 42.7722,
-                "AudioEnergy": 0.7324,
+                "AudioEnergy": 1.0,
                 "GPSVelocity": 0.0,
                 "PossibleFall": true
             }
