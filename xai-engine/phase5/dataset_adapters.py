@@ -309,12 +309,33 @@ def load_sensor_packets():
 
     The containing folder supplies the label, so captures must be sorted by
     hand into the two folders when they are recorded.
+
+    SUBJECT = capture session, not a distinct person
+    --------------------------------------------------
+    Every packet in one capture file shares one `sessionId` and is one
+    ~10 s rolling window stepped by 2 s (see phase4/test_real_packets.py -
+    EXPECTED_SAMPLE_RATE_HZ), so consecutive packets from the same file
+    overlap by up to ~80%. Tagging each row with its `sessionId` as
+    `Subject` lets train_tflite_model.py's GroupShuffleSplit hold out whole
+    capture *runs*, not just individual windows - without it, near-duplicate
+    windows from one run would land on both sides of the split and every
+    metric would come out optimistic, same failure mode the real Subject
+    column already guards against for uci_har/shimfall. It is NOT a proxy
+    for distinct people - one person can (and did, for this first batch)
+    contribute many sessions - so `subjects` in the provenance below counts
+    sessions, and is captioned as such rather than implying it is
+    demographic diversity. This is what makes `--dataset fusion,sensor_packets`
+    concatenate cleanly: both sides now carry the same Subject/Activity
+    metadata shape instead of sensor_packets rows going in as all-NaN.
     """
 
     import json
 
     sys.path.insert(0, str(BASE_DIR / "phase4"))
-    from sensor_packet_adapter import compute_feature_vector_from_packet
+    from sensor_packet_adapter import (
+        compute_feature_vector_from_packet,
+        session_context_from_packet
+    )
 
     root = RAW_DIR / "sensor_packets"
 
@@ -329,6 +350,7 @@ def load_sensor_packets():
 
     rows = []
     counts = {"emergency": 0, "normal": 0}
+    sessions = set()
 
     for label_name, label in (("normal", 0), ("emergency", 1)):
         folder = root / label_name
@@ -341,10 +363,17 @@ def load_sensor_packets():
             packets = payload if isinstance(payload, list) else [payload]
 
             for packet in packets:
+                # session_context_from_packet is the sanctioned way to read
+                # sessionId - dataset_adapters.py must never parse raw packet
+                # fields itself (phase4/test_adapter_is_sole_interface.py).
+                session_id = session_context_from_packet(packet)["SessionID"]
+
                 features = compute_feature_vector_from_packet(packet)
                 features[TARGET] = label
+                features["Subject"] = session_id
                 rows.append(features)
                 counts[label_name] += 1
+                sessions.add(session_id)
 
     if not rows:
         raise DatasetUnavailable(
@@ -360,15 +389,22 @@ def load_sensor_packets():
         "real_windows": len(rows),
         "packets_normal": counts["normal"],
         "packets_emergency": counts["emergency"],
+        "sessions": len(sessions),
         "caveat": (
             "Captured packets carry all five features with no cross-dataset "
-            "fusion, so this is the highest-fidelity source. Generalisation "
-            "still depends on how many distinct people, devices and "
-            "situations were captured."
+            "fusion, so this is the highest-fidelity source. `sessions` "
+            "counts distinct capture RUNS (the Subject column used for "
+            "group-splitting), not distinct people - this first batch is "
+            "one person across many sessions, so generalisation across "
+            "bodies, devices and real (not staged) incidents is still "
+            "unmeasured."
         )
     }
 
-    return pd.DataFrame(rows, columns=COLUMNS), provenance
+    return (
+        pd.DataFrame(rows, columns=COLUMNS + ["Subject"]),
+        provenance
+    )
 
 
 # ============================================================

@@ -48,10 +48,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_REAL_PACKET_DIR = BASE_DIR / "data" / "real_packets"
 REAL_PACKET_ENV_VAR = "INCOG_REAL_PACKETS"
 
-# On-device geometry, read off the Kotlin (see CLAUDE.md).
-EXPECTED_SAMPLE_RATE_HZ = 50.0
+# On-device geometry. SensorCollector requests SENSOR_DELAY_GAME, whose
+# ~50 Hz is only Android's nominal hint - actual delivery is hardware
+# dependent. All 18 real captures from Aarush's device (2026-09-11, 572
+# packets) measured ~97-101 Hz consistently (two vehicle-passenger runs
+# dipped to ~57 Hz, plausibly CPU load from GPS+motion+audio at once), so
+# 100 Hz - not the nominal 50 - is EXPECTED_SAMPLE_RATE_HZ here. That also
+# means MAX_ACCEL_SAMPLES=1000 is a ~10 s window on this device, not the
+# ~20 s the docs elsewhere (dataset_adapters.py, MODEL_CARD.md,
+# CAPTURE_PROTOCOL.md) assume for the nominal 50 Hz case - see
+# REAL_DATA_FINDINGS.md. Revisit this constant if a second device's
+# captures land at a different rate; one device's measurement is not
+# proof every phone behaves the same.
+EXPECTED_SAMPLE_RATE_HZ = 100.0
 MAX_ACCEL_SAMPLES = 1000              # SensorCollector.MAX_SAMPLES
-SAMPLE_RATE_TOLERANCE = 0.5           # accept 25-75 Hz before complaining
+SAMPLE_RATE_TOLERANCE = 0.5           # accept 50-150 Hz before complaining
 
 # Earth gravity is ~9.81 m/s^2; a resting phone reads about that. A window
 # whose peak is far below that suggests the values are in g, not m/s^2.

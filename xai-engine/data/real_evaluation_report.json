@@ -1,5 +1,5 @@
 {
-    "generated_at": "2026-09-06T18:16:23.442702+00:00",
+    "generated_at": "2026-09-11T15:06:20.515045+00:00",
     "model": "data/emergency_model.tflite",
     "model_retrained_by_this_script": false,
     "note": "This script only scores whatever data/emergency_model.tflite currently is - it never trains. Whether THAT model was itself produced by a retrain is recorded in data/tflite_model_metrics.json (data_provenance.dataset), not here.",
@@ -116,290 +116,278 @@
         {
             "audio_energy": 0.0,
             "gps_velocity": 0.0,
-            "false_positive_rate_at_0.80": 0.0004757826624797792,
-            "false_positive_rate_at_0.50": 0.0011418783899514702,
+            "false_positive_rate_at_0.80": 0.0022837567799029405,
+            "false_positive_rate_at_0.50": 0.007136739937196689,
             "windows": 10509
         },
         {
             "audio_energy": 0.0,
             "gps_velocity": 0.5,
-            "false_positive_rate_at_0.80": 0.0004757826624797792,
-            "false_positive_rate_at_0.50": 0.001332191454943382,
+            "false_positive_rate_at_0.80": 0.004472357027309925,
+            "false_positive_rate_at_0.50": 0.012084879626986393,
             "windows": 10509
         },
         {
             "audio_energy": 0.0,
             "gps_velocity": 1.5,
             "false_positive_rate_at_0.80": 0.0003806261299838234,
-            "false_positive_rate_at_0.50": 0.0010467218574555144,
+            "false_positive_rate_at_0.50": 0.000666095727471691,
             "windows": 10509
         },
         {
             "audio_energy": 0.0,
             "gps_velocity": 3.0,
-            "false_positive_rate_at_0.80": 0.00028546959748786756,
+            "false_positive_rate_at_0.80": 0.0022837567799029405,
+            "false_positive_rate_at_0.50": 0.003140165572366543,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 0.0,
+            "false_positive_rate_at_0.80": 0.0009515653249595584,
+            "false_positive_rate_at_0.50": 0.005233609287277572,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 0.5,
+            "false_positive_rate_at_0.80": 0.0021886002474069844,
+            "false_positive_rate_at_0.50": 0.0058997050147492625,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 1.5,
+            "false_positive_rate_at_0.80": 0.0,
             "false_positive_rate_at_0.50": 0.0003806261299838234,
             "windows": 10509
         },
         {
             "audio_energy": 0.05,
-            "gps_velocity": 0.0,
-            "false_positive_rate_at_0.80": 0.0004757826624797792,
-            "false_positive_rate_at_0.50": 0.0015225045199352936,
-            "windows": 10509
-        },
-        {
-            "audio_energy": 0.05,
-            "gps_velocity": 0.5,
-            "false_positive_rate_at_0.80": 0.002474069844894852,
-            "false_positive_rate_at_0.50": 0.015700827861832713,
-            "windows": 10509
-        },
-        {
-            "audio_energy": 0.05,
-            "gps_velocity": 1.5,
-            "false_positive_rate_at_0.80": 0.0003806261299838234,
-            "false_positive_rate_at_0.50": 0.0017128175849272054,
-            "windows": 10509
-        },
-        {
-            "audio_energy": 0.05,
             "gps_velocity": 3.0,
-            "false_positive_rate_at_0.80": 0.0003806261299838234,
-            "false_positive_rate_at_0.50": 0.0004757826624797792,
-            "windows": 10509
-        },
-        {
-            "audio_energy": 0.15,
-            "gps_velocity": 0.0,
-            "false_positive_rate_at_0.80": 0.0004757826624797792,
-            "false_positive_rate_at_0.50": 0.009135027119611762,
-            "windows": 10509
-        },
-        {
-            "audio_energy": 0.15,
-            "gps_velocity": 0.5,
-            "false_positive_rate_at_0.80": 0.0008564087924636027,
-            "false_positive_rate_at_0.50": 0.008754400989627938,
-            "windows": 10509
-        },
-        {
-            "audio_energy": 0.15,
-            "gps_velocity": 1.5,
-            "false_positive_rate_at_0.80": 0.0005709391949757351,
+            "false_positive_rate_at_0.80": 0.0018079741174231612,
             "false_positive_rate_at_0.50": 0.0020934437149110288,
             "windows": 10509
         },
         {
             "audio_energy": 0.15,
+            "gps_velocity": 0.0,
+            "false_positive_rate_at_0.80": 9.515653249595585e-05,
+            "false_positive_rate_at_0.50": 0.0034256351698544107,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 0.5,
+            "false_positive_rate_at_0.80": 0.0001903130649919117,
+            "false_positive_rate_at_0.50": 0.001332191454943382,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 1.5,
+            "false_positive_rate_at_0.80": 0.0,
+            "false_positive_rate_at_0.50": 0.0,
+            "windows": 10509
+        },
+        {
+            "audio_energy": 0.15,
             "gps_velocity": 3.0,
-            "false_positive_rate_at_0.80": 0.0003806261299838234,
-            "false_positive_rate_at_0.50": 0.0004757826624797792,
+            "false_positive_rate_at_0.80": 0.0016176610524312495,
+            "false_positive_rate_at_0.50": 0.0018079741174231612,
             "windows": 10509
         },
         {
             "audio_energy": 0.35,
             "gps_velocity": 0.0,
-            "false_positive_rate_at_0.80": 0.000666095727471691,
-            "false_positive_rate_at_0.50": 0.0019982871824150727,
+            "false_positive_rate_at_0.80": 0.0,
+            "false_positive_rate_at_0.50": 0.0041868874298220575,
             "windows": 10509
         },
         {
             "audio_energy": 0.35,
             "gps_velocity": 0.5,
-            "false_positive_rate_at_0.80": 0.001237034922447426,
-            "false_positive_rate_at_0.50": 0.002474069844894852,
+            "false_positive_rate_at_0.80": 0.0,
+            "false_positive_rate_at_0.50": 0.001332191454943382,
             "windows": 10509
         },
         {
             "audio_energy": 0.35,
             "gps_velocity": 1.5,
-            "false_positive_rate_at_0.80": 0.0017128175849272054,
-            "false_positive_rate_at_0.50": 0.0050432962222856596,
+            "false_positive_rate_at_0.80": 0.0,
+            "false_positive_rate_at_0.50": 0.0,
             "windows": 10509
         },
         {
             "audio_energy": 0.35,
             "gps_velocity": 3.0,
-            "false_positive_rate_at_0.80": 0.0003806261299838234,
-            "false_positive_rate_at_0.50": 0.0009515653249595584,
+            "false_positive_rate_at_0.80": 0.0017128175849272054,
+            "false_positive_rate_at_0.50": 0.002474069844894852,
             "windows": 10509
         },
         {
             "audio_energy": 0.6,
             "gps_velocity": 0.0,
-            "false_positive_rate_at_0.80": 0.0019031306499191168,
+            "false_positive_rate_at_0.80": 0.0,
             "false_positive_rate_at_0.50": 0.002569226377390808,
             "windows": 10509
         },
         {
             "audio_energy": 0.6,
             "gps_velocity": 0.5,
-            "false_positive_rate_at_0.80": 0.002569226377390808,
-            "false_positive_rate_at_0.50": 0.004852983157293748,
+            "false_positive_rate_at_0.80": 0.0,
+            "false_positive_rate_at_0.50": 0.0030450090398705873,
             "windows": 10509
         },
         {
             "audio_energy": 0.6,
             "gps_velocity": 1.5,
-            "false_positive_rate_at_0.80": 0.006090018079741175,
-            "false_positive_rate_at_0.50": 0.010276905509563231,
+            "false_positive_rate_at_0.80": 0.0,
+            "false_positive_rate_at_0.50": 0.0001903130649919117,
             "windows": 10509
         },
         {
             "audio_energy": 0.6,
             "gps_velocity": 3.0,
-            "false_positive_rate_at_0.80": 0.0005709391949757351,
-            "false_positive_rate_at_0.50": 0.0021886002474069844,
+            "false_positive_rate_at_0.80": 0.0022837567799029405,
+            "false_positive_rate_at_0.50": 0.0030450090398705873,
             "windows": 10509
         }
     ],
     "false_positive_rate_range": [
-        0.00028546959748786756,
-        0.006090018079741175
+        0.0,
+        0.004472357027309925
     ],
     "headline_cell": {
         "audio_energy": 0.05,
         "gps_velocity": 1.5,
-        "false_positive_rate_at_0.80": 0.0003806261299838234,
-        "false_positive_rate_at_0.50": 0.0017128175849272054,
+        "false_positive_rate_at_0.80": 0.0,
+        "false_positive_rate_at_0.50": 0.0003806261299838234,
         "windows": 10509
     },
     "recall_sweep": [
         {
             "audio_energy": 0.0,
             "gps_velocity": 0.0,
-            "recall_at_0.80": 0.7682539682539683,
+            "recall_at_0.80": 0.7206349206349206,
             "windows": 315
         },
         {
             "audio_energy": 0.0,
             "gps_velocity": 0.5,
-            "recall_at_0.80": 0.7873015873015873,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.0,
-            "gps_velocity": 1.5,
-            "recall_at_0.80": 0.765079365079365,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.0,
-            "gps_velocity": 3.0,
-            "recall_at_0.80": 0.6603174603174603,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.05,
-            "gps_velocity": 0.0,
-            "recall_at_0.80": 0.7777777777777778,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.05,
-            "gps_velocity": 0.5,
-            "recall_at_0.80": 0.7936507936507936,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.05,
-            "gps_velocity": 1.5,
-            "recall_at_0.80": 0.765079365079365,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.05,
-            "gps_velocity": 3.0,
-            "recall_at_0.80": 0.6698412698412698,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.15,
-            "gps_velocity": 0.0,
-            "recall_at_0.80": 0.7904761904761904,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.15,
-            "gps_velocity": 0.5,
-            "recall_at_0.80": 0.8,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.15,
-            "gps_velocity": 1.5,
-            "recall_at_0.80": 0.7841269841269841,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.15,
-            "gps_velocity": 3.0,
-            "recall_at_0.80": 0.7015873015873015,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.35,
-            "gps_velocity": 0.0,
-            "recall_at_0.80": 0.8095238095238095,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.35,
-            "gps_velocity": 0.5,
-            "recall_at_0.80": 0.8285714285714286,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.35,
-            "gps_velocity": 1.5,
-            "recall_at_0.80": 0.8063492063492064,
-            "windows": 315
-        },
-        {
-            "audio_energy": 0.35,
-            "gps_velocity": 3.0,
             "recall_at_0.80": 0.7301587301587301,
             "windows": 315
         },
         {
+            "audio_energy": 0.0,
+            "gps_velocity": 1.5,
+            "recall_at_0.80": 0.6698412698412698,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.0,
+            "gps_velocity": 3.0,
+            "recall_at_0.80": 0.8126984126984127,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 0.0,
+            "recall_at_0.80": 0.6,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 0.5,
+            "recall_at_0.80": 0.6,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 1.5,
+            "recall_at_0.80": 0.5587301587301587,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.05,
+            "gps_velocity": 3.0,
+            "recall_at_0.80": 0.7206349206349206,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 0.0,
+            "recall_at_0.80": 0.3492063492063492,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 0.5,
+            "recall_at_0.80": 0.3746031746031746,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 1.5,
+            "recall_at_0.80": 0.3492063492063492,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.15,
+            "gps_velocity": 3.0,
+            "recall_at_0.80": 0.6063492063492063,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.35,
+            "gps_velocity": 0.0,
+            "recall_at_0.80": 0.012698412698412698,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.35,
+            "gps_velocity": 0.5,
+            "recall_at_0.80": 0.0380952380952381,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.35,
+            "gps_velocity": 1.5,
+            "recall_at_0.80": 0.05714285714285714,
+            "windows": 315
+        },
+        {
+            "audio_energy": 0.35,
+            "gps_velocity": 3.0,
+            "recall_at_0.80": 0.5587301587301587,
+            "windows": 315
+        },
+        {
             "audio_energy": 0.6,
             "gps_velocity": 0.0,
-            "recall_at_0.80": 0.8285714285714286,
+            "recall_at_0.80": 0.0,
             "windows": 315
         },
         {
             "audio_energy": 0.6,
             "gps_velocity": 0.5,
-            "recall_at_0.80": 0.8539682539682539,
+            "recall_at_0.80": 0.0,
             "windows": 315
         },
         {
             "audio_energy": 0.6,
             "gps_velocity": 1.5,
-            "recall_at_0.80": 0.8825396825396825,
+            "recall_at_0.80": 0.0,
             "windows": 315
         },
         {
             "audio_energy": 0.6,
             "gps_velocity": 3.0,
-            "recall_at_0.80": 0.7841269841269841,
+            "recall_at_0.80": 0.5619047619047619,
             "windows": 315
         }
     ],
     "false_positives_by_activity": [
-        {
-            "activity": "adl_jump",
-            "windows": 35,
-            "possible_fall_rate": 1.0,
-            "false_positive_rate_at_0.80": 0.05714285714285714
-        },
-        {
-            "activity": "WALKING_DOWNSTAIRS",
-            "windows": 1406,
-            "possible_fall_rate": 0.9964,
-            "false_positive_rate_at_0.80": 0.001422475106685633
-        },
         {
             "activity": "LAYING",
             "windows": 1944,
@@ -425,6 +413,12 @@
             "false_positive_rate_at_0.80": 0.0
         },
         {
+            "activity": "WALKING_DOWNSTAIRS",
+            "windows": 1406,
+            "possible_fall_rate": 0.9964,
+            "false_positive_rate_at_0.80": 0.0
+        },
+        {
             "activity": "WALKING_UPSTAIRS",
             "windows": 1544,
             "possible_fall_rate": 0.9352,
@@ -434,6 +428,12 @@
             "activity": "adl_bendingandpickingup",
             "windows": 35,
             "possible_fall_rate": 0.2571,
+            "false_positive_rate_at_0.80": 0.0
+        },
+        {
+            "activity": "adl_jump",
+            "windows": 35,
+            "possible_fall_rate": 1.0,
             "false_positive_rate_at_0.80": 0.0
         },
         {

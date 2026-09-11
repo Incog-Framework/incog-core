@@ -1,3 +1,16 @@
+# TC03-05 predate every real-data retrain (unchanged since the first
+# commit): their "Emergency" feature values were hand-picked to sit inside
+# the ORIGINAL 30-row synthetic dataset's Emergency range (PeakAcceleration
+# 16.5-26.1, MotionVariance 12.4-40.2), not from any observed real fall.
+# Every retrain since 2026-09-05 has deliberately UNLEARNED "high peak +
+# high variance alone = Emergency" - that shortcut is exactly what made the
+# original model fire on 40% of real walking-downstairs windows and 100% of
+# jumps (see REAL_DATA_FINDINGS.md, MODEL_CARD.md Limitation 7). So TC03-05
+# failing here is expected on every real-data-trained model, including the
+# one this replaced - it is not a regression, and this smoke test does not
+# gate run_tests.py's exit code. Recalibrating these three cases against
+# real fall statistics (e.g. ShimFall) instead of retiring them is tracked
+# as follow-up work, not done here.
 import os
 import json
 import numpy as np

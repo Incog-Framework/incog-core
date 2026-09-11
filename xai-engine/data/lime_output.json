@@ -1,11 +1,11 @@
 {
     "Prediction": "Normal",
-    "Confidence": 0.001517,
+    "Confidence": 0.001598,
     "LIME": {
-        "PeakAcceleration > 20.62": 0.461612,
-        "MotionVariance > 25.20": -0.324649,
-        "0.50 < PossibleFall <= 1.00": -0.05209,
-        "GPSVelocity <= 0.00": 0.01725,
-        "AudioEnergy > 0.75": 0.005658
+        "MotionVariance > 25.20": -0.302917,
+        "PeakAcceleration > 20.62": 0.25666,
+        "GPSVelocity <= 0.00": 0.065432,
+        "0.50 < PossibleFall <= 1.00": 0.016455,
+        "AudioEnergy > 0.75": -0.01216
     }
 }

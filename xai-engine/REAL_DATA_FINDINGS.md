@@ -1,5 +1,10 @@
 # Real-data evaluation of the deployed model
 
+> **UPDATE (2026-09-11): retrained again on real GPS-paired SensorPacket
+> captures** — the first retrain trained on actual device data rather than
+> public corpora alone. Full current numbers and method: **MODEL_CARD.md**
+> ("Real captures" and "Honest evaluation" measurement 3).
+>
 > **UPDATE (2026-09-06): retrained twice more — a GPS fix, then an AudioEnergy
 > rescale.** Everything below this banner describes the ORIGINAL model (30
 > synthetic rows) and is kept for the before/after comparison. Full current
