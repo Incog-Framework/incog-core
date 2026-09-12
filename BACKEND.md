@@ -41,13 +41,31 @@ means the SQL itself has **never executed**.
 
 Treat the right-hand column as the risk surface for integration testing.
 
+### Secret rotation (step 4c) — status
+
+- **Done.** `EVIDENCE_AES_KEY`, `INCOG_API_KEY` and the Neon `DATABASE_URL`
+  rotated at their providers and updated on Render. The superseded Postgres
+  passwords were verified dead — they return `password authentication failed`,
+  identical to a junk-password control against a reachable host.
+- **Done.** The `.gitignore` UTF-16 `.env` line is removed; the file is ASCII
+  again and git stores it as text rather than binary.
+- **Done.** Dead variables `ENCRYPTION_KEY` (old Fernet key) and
+  `AGENT_SECRET_KEY` deleted from the Render environment.
+- **Not applicable.** Twilio credentials were never in git history. The `.env`
+  at `88cf897` contained exactly three values: `DATABASE_URL`,
+  `AGENT_SECRET_KEY`, `ENCRYPTION_KEY`. The Twilio auth token has never
+  appeared in the repository.
+- **Pending.** The old values still sit in commits `88cf897` and `1ad34dc`.
+  Rotating at the provider is what makes them harmless; scrubbing history with
+  `git filter-repo` would remove them entirely but rewrites every SHA, so it
+  needs coordinating across the team.
+
 ### Also outstanding
 
 - `.env.example` is stale — it still lists `ENCRYPTION_KEY` and
-  `AGENT_SECRET_KEY`. Use the variable table below as the source of truth.
-- `.gitignore` line 219 has `.env` written in UTF-16, so git cannot parse it as
-  a pattern. `.env` is ignored only because a valid rule exists at line 151.
-  Worth fixing; left alone here as it is shared root config.
+  `AGENT_SECRET_KEY`, and omits `EVIDENCE_AES_KEY`, `INCOG_API_KEY` and
+  `TWILIO_CHANNEL`. Its values are all placeholders, so nothing leaks; use the
+  variable table below as the source of truth until it is updated.
 - Backend relocation into `c2-backend/` and the Render start command were
   deferred to keep this change reviewable.
 - SHAP/LIME: `AIResult` already carries `SHAP`/`LIME` maps, so there is a
