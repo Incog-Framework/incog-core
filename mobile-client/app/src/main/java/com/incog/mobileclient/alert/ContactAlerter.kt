@@ -38,6 +38,22 @@ object ContactAlerter {
         .filter { it.phone.isNotBlank() }
         .map { c -> ContactSms(c.name, c.phone, send(context, c.phone, ownerName, latitude, longitude)) }
 
+    /** Whether the app currently holds the SEND_SMS runtime grant (the usual reason texts don't send). */
+    fun hasSmsPermission(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Sends a harmless TEST message to every contact so a user can confirm setup works (used by the
+     * setup screen's "Send test alert" button). Same delivery path as the real alert.
+     */
+    fun sendTest(context: Context, contacts: List<Contact>, ownerName: String): List<ContactSms> {
+        val body = "INCOG test alert — your emergency setup is working. " +
+            (if (ownerName.isNotBlank()) "From $ownerName. " else "") + "No emergency; please ignore."
+        return contacts.filter { it.phone.isNotBlank() }
+            .map { c -> ContactSms(c.name, c.phone, sendBody(context, c.phone, body)) }
+    }
+
     /** Pure/testable: true only if there is a number worth attempting an SMS to. */
     fun shouldAttempt(contactPhone: String): Boolean = contactPhone.isNotBlank()
 
@@ -77,25 +93,29 @@ object ContactAlerter {
         longitude: Double
     ): Boolean {
         if (!shouldAttempt(contactPhone)) return false
+        return sendBody(context, contactPhone, buildMessage(ownerName, latitude, longitude))
+    }
 
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
+    /**
+     * Low-level multipart send shared by the emergency and test paths. Checks the SEND_SMS grant,
+     * never throws, returns true only if the message was handed to the radio.
+     */
+    private fun sendBody(context: Context, contactPhone: String, message: String): Boolean {
+        if (contactPhone.isBlank()) return false
+        if (!hasSmsPermission(context)) {
             Log.w(TAG, "SEND_SMS not granted — cannot text ${redact(contactPhone)}.")
             return false
         }
-
         return try {
             // getSystemService(SmsManager) — the API 31+ replacement for the deprecated getDefault().
             val sms = context.getSystemService(SmsManager::class.java)
-            val message = buildMessage(ownerName, latitude, longitude)
             // Multipart: a single sendTextMessage() truncates at 160 chars and would cut the Maps link.
             val parts = sms.divideMessage(message)
             sms.sendMultipartTextMessage(contactPhone, null, parts, null, null)
-            Log.i(TAG, "Emergency SMS handed to radio for ${redact(contactPhone)} (${parts.size} parts).")
+            Log.i(TAG, "SMS handed to radio for ${redact(contactPhone)} (${parts.size} parts).")
             true
         } catch (t: Throwable) {
-            Log.e(TAG, "Failed to send emergency SMS to ${redact(contactPhone)}.", t)
+            Log.e(TAG, "Failed to send SMS to ${redact(contactPhone)}.", t)
             false
         }
     }
