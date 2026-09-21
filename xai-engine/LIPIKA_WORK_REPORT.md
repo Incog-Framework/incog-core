@@ -23,6 +23,29 @@ person and has limited held-out scenario coverage.
 
 ## Delivered functionality
 
+### Foundational implementation: initial end-to-end AI pipeline
+
+The first implementation established the complete working path before the
+real-data improvements were added:
+
+- Built the Phase 4 sensor-processing path for CSV data and Android-style
+  `SensorPacket` input.
+- Implemented the initial five-feature sensor vector and preprocessing flow.
+- Trained the first emergency classifier and exported both the Keras model and
+  TensorFlow Lite model for inference.
+- Implemented TFLite prediction output with prediction label, confidence, and
+  model metadata.
+- Implemented the Phase 6 decision engine and emergency dispatch threshold.
+- Built the initial XAI pipeline with SHAP, LIME, human-readable explanations,
+  and explanation visualizations.
+- Built the Phase 7 pipeline for metrics, intervention decisions, forensic
+  evidence manifests, and final system reports.
+- Added the initial end-to-end pipeline runner and scenario/system tests.
+
+This baseline is the foundation that the later contract hardening, real-data
+evaluation, GPS correction, audio rescaling, and real-capture retraining
+extended.
+
 ### Phase 4: sensor feature extraction and Android contract
 
 - Added a single `SensorPacket` adapter that owns Android JSON field names,
@@ -232,6 +255,7 @@ captures had high ambient pocket noise in both calm and distress scenarios.
 
 | Commit | Date | Contribution |
 |---|---|---|
+| `b9a32f8` | 2026-08-31 | Initial sensor fusion, TFLite inference, decision engine, XAI pipeline, Phase 7 artifacts, and end-to-end tests |
 | `c51db4f` | 2026-09-03 | Real-data evaluation, explainer API, contract tests, dataset adapters, and integration pipeline |
 | `b344537` | 2026-09-06 | Neutralized GPS-label correlation so fast movement cannot suppress emergency alerts |
 | `14eeaab` | 2026-09-07 | Fitted AudioEnergy dB normalization against real RAVDESS speech and retrained the model |
