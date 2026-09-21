@@ -251,6 +251,117 @@ captures had high ambient pocket noise in both calm and distress scenarios.
 - Phase 7: session propagation and downstream artifact checks
 - `run_tests.py` is the full-suite entry point.
 
+## Complete tracked deliverables inventory
+
+The following is the complete tracked `xai-engine` inventory on this branch.
+This appendix is included so the project report can point to every delivered
+file, not only the principal implementation modules.
+
+### Root documentation and runners
+
+- `.gitignore`
+- `CAPTURE_PROTOCOL.md`
+- `CLAUDE.md`
+- `DATA_REQUIREMENTS.md`
+- `INTEGRATION.md`
+- `LIPIKA_WORK_REPORT.md`
+- `MODEL_CARD.md`
+- `REAL_DATA_FINDINGS.md`
+- `generate_contract_fixtures.py`
+- `run_ai_pipeline.py`
+- `run_tests.py`
+
+### Phase 4 implementation and tests
+
+- `phase4/feature_extraction.py`
+- `phase4/process_sensor_packet.py`
+- `phase4/sensor_packet_adapter.py`
+- `phase4/sensor_processing.py`
+- `phase4/test_adapter_is_sole_interface.py`
+- `phase4/test_contract_sync.py`
+- `phase4/test_feature_extraction.py`
+- `phase4/test_kotlin_parity.py`
+- `phase4/test_real_packets.py`
+- `phase4/test_sensor_packet_adapter.py`
+- `phase4/test_sensor_packet_contract.py`
+
+### Phase 5 datasets, training, inference, and tests
+
+- `phase5/check_dataset.py`
+- `phase5/dataset_adapters.py`
+- `phase5/evaluate_real_fpr.py`
+- `phase5/evaluate_real_packets.py`
+- `phase5/fetch_datasets.py`
+- `phase5/test_dataset_adapters.py`
+- `phase5/test_tflite_all.py`
+- `phase5/tflite_predict.py`
+- `phase5/train_tflite_model.py`
+- `phase5/validate_audio_normalization.py`
+
+### Phase 6 decision engine and tests
+
+- `phase6/decision_engine.py`
+- `phase6/test_decision_threshold.py`
+- `phase6/test_system.py`
+
+### Phase 7 reports, interventions, forensics, and tests
+
+- `phase7/evaluate_metrics.py`
+- `phase7/final_pipeline.py`
+- `phase7/final_validation.py`
+- `phase7/forensics.py`
+- `phase7/generate_report.py`
+- `phase7/intervention.py`
+- `phase7/test_cases.py`
+- `phase7/test_session_propagation.py`
+
+### XAI implementation and tests
+
+- `xai/__init__.py`
+- `xai/config.py`
+- `xai/explain.py`
+- `xai/explainer_service.py`
+- `xai/explanation_generator.py`
+- `xai/lime_explain.py`
+- `xai/test_explainer_service.py`
+- `xai/test_xai_output_contract.py`
+- `xai/tflite_utils.py`
+- `xai/visualize.py`
+- `xai/xai_pipeline.py`
+
+### Models, contracts, datasets, generated outputs, and visualizations
+
+- `data/audio_validation_report.json`
+- `data/decision.json`
+- `data/emergency_model.keras`
+- `data/emergency_model.tflite`
+- `data/feature_vector.csv`
+- `data/final_model_metrics.json`
+- `data/final_system_report.json`
+- `data/forensic_evidence/evidence_manifest.json`
+- `data/golden_feature_vectors.json`
+- `data/human_explanation.json`
+- `data/intervention.json`
+- `data/lime_output.json`
+- `data/model_contract.json`
+- `data/model_metadata.json`
+- `data/prediction_tflite.json`
+- `data/raw/README.md`
+- `data/real_evaluation_report.json`
+- `data/real_packet_evaluation_report.json`
+- `data/real_packets/README.md`
+- `data/sensor_data.csv`
+- `data/sensor_packet.json`
+- `data/shap_output.json`
+- `data/test_results.json`
+- `data/tflite_feature_order.json`
+- `data/tflite_model_metrics.json`
+- `data/tflite_test_results.csv`
+- `data/training_data.csv`
+- `data/xai_output.json`
+- `data/xai_visualizations/lime_explanation.png`
+- `data/xai_visualizations/shap_explanation.png`
+
 ## Commit history of this contribution
 
 | Commit | Date | Contribution |
