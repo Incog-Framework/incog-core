@@ -36,8 +36,11 @@ android {
         applicationId = "com.incog.mobileclient"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        // Bump both on every distributed build. versionCode had been left at 1 across all the
+        // sideloaded releases, which made it impossible to tell which build a tester was running —
+        // the usual cause of "it's still broken" reports against an already-fixed APK.
+        versionCode = 2
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
