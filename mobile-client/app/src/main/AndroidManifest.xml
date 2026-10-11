@@ -12,6 +12,10 @@
     <!-- Phase 11: upload encrypted evidence to the backend over TLS. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Covert haptic cue on arm/stand-down, so an accidental trigger is felt (and can be stood
+         down) even with the phone pocketed. A normal permission — no runtime prompt. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- Phase 3: sensor + audio collection. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />

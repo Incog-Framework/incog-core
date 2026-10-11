@@ -23,6 +23,23 @@ the workflow below is meant to be sufficient context on its own.
   disguise is Calculator-consistent, not fake-system. (2) `POST_NOTIFICATIONS` is requested at
   launch (MainActivity); without it the FGS notification is silently suppressed. (3) The
   accessibility toggle only needs re-enabling after a reinstall (dev artifact), not in normal use.
+- **False-alarm safeguards (added after pilot testing).** A silent trigger means an *accidental*
+  trigger is imperceptible, so a false alarm could reach the owner's contacts without them ever
+  knowing a session started. Two settings, both in the setup screen:
+  (1) **Haptic cues** (`hapticCues`, default ON) — one ~60 ms tick on arm and on stand-down, via
+  `ghost/CovertHaptics`. Fired **directly from `Vibrator`, never through the notification**: an
+  `IMPORTANCE_MIN` channel cannot vibrate at all, raising importance would break the disguise, and
+  channel settings are immutable after creation so `enableVibration(true)` would be ignored on every
+  existing install. One short tick stays deniable; a longer/repeating pattern would not. Needs the
+  `VIBRATE` permission (normal, no prompt).
+  (2) **Grace window** (`graceSeconds`, default 10, clamped 0–`MAX_GRACE_SECONDS`=60) — on
+  `EMERGENCY CONFIRMED` the Phase 7-11 dispatch is held via `handler.postDelayed`, cancellable by
+  the stand-down code (`cancelPendingDispatch()` in `stopSession()`). **Fail-open**: the alert fires
+  unless deliberately cancelled, so inaction always escalates. Recording continues through the
+  window, and the audio snapshot is taken at dispatch time, so waiting loses no evidence. 0 restores
+  the old immediate-alert behaviour.
+  Trade-off to keep in mind: the arm cue fires on *every* activation, including real covert ones, so
+  an owner who judges the buzz itself a risk turns it off.
 - **Phase 3 (sensors/audio): DONE & on-device verified, incl. locked screen.** `sensors/` package
   — `SensorCollector` (accelerometer + gyroscope, bounded 1000-sample history),
   `LocationCollector` (FusedLocationProviderClient GPS), `AudioBufferCollector` (AudioRecord →
