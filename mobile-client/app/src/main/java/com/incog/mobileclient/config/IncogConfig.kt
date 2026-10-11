@@ -29,6 +29,12 @@ data class Contact(
     val phone: String = "",
 )
 
+/**
+ * Default alert hold. Long enough to pull a phone from a pocket and type the stand-down code after
+ * feeling the arm cue, short enough that a real emergency is not meaningfully delayed.
+ */
+const val DEFAULT_GRACE_SECONDS = 10
+
 /** Everything the owner configures once, persisted across launches. */
 data class IncogSettings(
     /** The app owner's own name, shown to contacts in the alert ("<name> may be in danger"). */
@@ -44,6 +50,19 @@ data class IncogSettings(
      * app deliberately persists nothing; this is opt-in tooling, not a shipping feature.
      */
     val captureMode: Boolean = false,
+    /**
+     * Whether Ghost State fires a single short vibration when a session arms and when it stands
+     * down. ON by default: without it an accidental DDU trigger is imperceptible, so the owner
+     * cannot know a false alarm is building. An owner who judges that the buzz itself is a risk
+     * (an attacker holding the phone could notice the trigger) can turn it off.
+     */
+    val hapticCues: Boolean = true,
+    /**
+     * Seconds to hold the alert after the AI confirms an emergency, so the owner can cancel a false
+     * positive with the stand-down code before contacts are texted. Fail-open: when the window
+     * elapses the alert fires, so inaction always escalates. 0 disables the hold (immediate alert).
+     */
+    val graceSeconds: Int = DEFAULT_GRACE_SECONDS,
 )
 
 /**
@@ -72,6 +91,8 @@ class IncogConfig(context: Context) {
         ),
         setupComplete = prefs.getBoolean(KEY_SETUP_COMPLETE, false),
         captureMode = prefs.getBoolean(KEY_CAPTURE_MODE, false),
+        hapticCues = prefs.getBoolean(KEY_HAPTIC_CUES, true),
+        graceSeconds = clampGraceSeconds(prefs.getInt(KEY_GRACE_SECONDS, DEFAULT_GRACE_SECONDS)),
     )
 
     private fun loadContacts(): List<Contact> {
@@ -107,6 +128,8 @@ class IncogConfig(context: Context) {
             .putString(KEY_SETTINGS, settings.codes.settings.trim())
             .putBoolean(KEY_SETUP_COMPLETE, true)
             .putBoolean(KEY_CAPTURE_MODE, settings.captureMode)
+            .putBoolean(KEY_HAPTIC_CUES, settings.hapticCues)
+            .putInt(KEY_GRACE_SECONDS, clampGraceSeconds(settings.graceSeconds))
             // Drop the legacy single-contact keys now that we own an indexed list.
             .remove(LEGACY_KEY_NAME)
             .remove(LEGACY_KEY_PHONE)
@@ -170,6 +193,19 @@ class IncogConfig(context: Context) {
         /** Upper bound on trusted contacts, to keep the SMS fan-out and the payload sane. */
         const val MAX_CONTACTS = 5
 
+        /** Longest alert hold the owner may configure. Past this, a real emergency waits too long. */
+        const val MAX_GRACE_SECONDS = 60
+
+        /**
+         * Keeps a stored or user-entered hold inside [0, [MAX_GRACE_SECONDS]]. Pure, so the bound is
+         * unit-tested without a device. Guards against a corrupted pref or a typo in setup becoming
+         * an indefinitely delayed alert.
+         */
+        fun clampGraceSeconds(seconds: Int): Int = seconds.coerceIn(0, MAX_GRACE_SECONDS)
+
+        /** Milliseconds to hold the dispatch for, derived from the clamped setting. */
+        fun graceMillis(seconds: Int): Long = clampGraceSeconds(seconds) * 1000L
+
         private const val TAG = "IncogConfig"
         private const val PREFS_NAME = "incog_config_secure"
         private const val LEGACY_PREFS_NAME = "incog_config"
@@ -185,6 +221,8 @@ class IncogConfig(context: Context) {
         private const val KEY_SETTINGS = "code_settings"
         private const val KEY_SETUP_COMPLETE = "setup_complete"
         private const val KEY_CAPTURE_MODE = "capture_mode"
+        private const val KEY_HAPTIC_CUES = "haptic_cues"
+        private const val KEY_GRACE_SECONDS = "grace_seconds"
         private val DEFAULT = SecretCodes()
     }
 }

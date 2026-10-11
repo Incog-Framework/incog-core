@@ -71,6 +71,13 @@ class GhostStateService : Service() {
     private var classifier: EmergencyClassifier? = null
     private var emergencyHandled = false
 
+    // False-alarm safeguards, read once per session from IncogConfig at startSession().
+    private var hapticCues = true
+    private var graceMillis = 0L
+
+    // The held Phase 7-11 dispatch during the grace window; cancelled by a stand-down.
+    private var pendingDispatch: Runnable? = null
+
     // Non-null only while capture mode is on: accumulates this session's packets, flushed to a
     // JSON file on stand-down (model-training data collection — see CAPTURE_PROTOCOL.md). Off by
     // default; the production app persists nothing to disk.
@@ -135,17 +142,33 @@ class GhostStateService : Service() {
             null
         }
 
-        val capturing = IncogConfig(this).load().captureMode
+        val settings = IncogConfig(this).load()
+        val capturing = settings.captureMode
         captureBuffer = if (capturing) mutableListOf() else null
+        hapticCues = settings.hapticCues
+        graceMillis = IncogConfig.graceMillis(settings.graceSeconds)
 
         startSnapshotLogging()
-        Log.i(TAG, "Ghost State ACTIVATED — SessionID=$sessionId (mic=$micStarted, gps=$gpsStarted, ai=${classifier != null}, capture=$capturing)")
+        Log.i(TAG, "Ghost State ACTIVATED — SessionID=$sessionId (mic=$micStarted, gps=$gpsStarted, ai=${classifier != null}, capture=$capturing, haptics=$hapticCues, graceMs=$graceMillis)")
+
+        // The only perceptible sign a session armed. Fires last so a vibrator problem can never
+        // prevent the session itself from starting.
+        if (hapticCues) CovertHaptics.tick(this)
     }
 
     private fun stopSession() {
+        // ACTION_STOP is delivered whenever the stand-down code is typed, even with no session
+        // running (the rest of this teardown is deliberately unconditional, to clear a zombie
+        // service). Only cue when a session was actually ended, so idly typing the code on the
+        // calculator doesn't buzz the phone for no reason.
+        val wasRunning = isRunning
         Log.i(TAG, "Ghost State DEACTIVATED — SessionID=$currentSessionId")
         stopSnapshotLogging()
+        cancelPendingDispatch()
         flushCapture(currentSessionId)
+        // Confirms the stand-down took effect, so the owner knows the session is over without
+        // having to check anything on screen.
+        if (wasRunning && hapticCues) CovertHaptics.tick(this)
         sensorCollector?.stop(); sensorCollector = null
         locationCollector?.stop(); locationCollector = null
         audioCollector?.stop(); audioCollector = null
@@ -269,9 +292,47 @@ class GhostStateService : Service() {
                     "EMERGENCY CONFIRMED (confidence ${"%.4f".format(result.confidence)} >= " +
                         "${result.decisionThreshold}) — running Phase 7-11 handoff. SessionID=${result.sessionId}"
                 )
-                handleEmergency(result, packet)
+                dispatchAfterGrace(result, packet)
             }
         }
+    }
+
+    /**
+     * Holds the alert for the configured grace window so the owner can cancel a false positive with
+     * the stand-down code before their contacts are texted.
+     *
+     * Fail-open by design: the window only ever *delays* the alert. Nothing has to be confirmed for
+     * it to fire, so an owner who is unconscious, restrained, or simply not looking at the phone
+     * still gets the full alert — inaction always escalates. Cancelling is a deliberate act (the
+     * stand-down code), which routes through [stopSession] and clears the pending dispatch.
+     *
+     * Recording continues throughout, so nothing is lost by waiting; the audio snapshot is taken
+     * when the dispatch actually runs, so the evidence covers the window too.
+     */
+    private fun dispatchAfterGrace(result: AiResult, packet: SensorPacket) {
+        if (graceMillis <= 0L) {
+            handleEmergency(result, packet)
+            return
+        }
+        val dispatch = Runnable {
+            pendingDispatch = null
+            Log.w(TAG, "Grace window elapsed — dispatching alert. SessionID=${result.sessionId}")
+            handleEmergency(result, packet)
+        }
+        pendingDispatch = dispatch
+        handler.postDelayed(dispatch, graceMillis)
+        Log.w(
+            TAG,
+            "Alert HELD for ${graceMillis}ms — stand down now to cancel. SessionID=${result.sessionId}"
+        )
+    }
+
+    /** Drops a held alert. Called on stand-down; no-op when nothing is pending. */
+    private fun cancelPendingDispatch() {
+        val pending = pendingDispatch ?: return
+        handler.removeCallbacks(pending)
+        pendingDispatch = null
+        Log.w(TAG, "Held alert CANCELLED by stand-down — no SMS, no upload. SessionID=$currentSessionId")
     }
 
     /**

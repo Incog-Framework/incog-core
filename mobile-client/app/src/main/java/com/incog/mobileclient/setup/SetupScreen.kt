@@ -39,6 +39,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.incog.mobileclient.alert.ContactAlerter
 import com.incog.mobileclient.config.Contact
+import com.incog.mobileclient.config.DEFAULT_GRACE_SECONDS
 import com.incog.mobileclient.config.IncogConfig
 import com.incog.mobileclient.config.IncogSettings
 import com.incog.mobileclient.config.SecretCodes
@@ -72,6 +73,8 @@ fun SetupScreen(
     var standDownCode by remember { mutableStateOf(initial.codes.standDown) }
     var settingsCode by remember { mutableStateOf(initial.codes.settings) }
     var captureMode by remember { mutableStateOf(initial.captureMode) }
+    var hapticCues by remember { mutableStateOf(initial.hapticCues) }
+    var graceSecondsText by remember { mutableStateOf(initial.graceSeconds.toString()) }
     var error by remember { mutableStateOf<String?>(null) }
     val focusManager = LocalFocusManager.current
 
@@ -184,6 +187,43 @@ fun SetupScreen(
             }
         }
 
+        // A silent trigger means an accidental one is invisible, so a false alarm can run all the
+        // way to texting contacts unnoticed. These two settings are the owner's defence: feel that
+        // a session started, and get a window to cancel before anyone is contacted.
+        SectionLabel("False-alarm safeguards")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Vibrate on trigger", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "One short buzz when a session starts, and another when it stops — so you " +
+                        "notice an accidental trigger even with the phone in your pocket. Turn off " +
+                        "only if the trigger must be completely imperceptible.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(checked = hapticCues, onCheckedChange = { hapticCues = it })
+        }
+        OutlinedTextField(
+            value = graceSecondsText,
+            onValueChange = { graceSecondsText = it.filter(Char::isDigit).take(2) },
+            label = { Text("Alert delay (seconds)") },
+            supportingText = {
+                Text(
+                    "Once an emergency is detected, your contacts are texted after this delay — " +
+                        "type your stand-down code within it to cancel a false alarm. The alert " +
+                        "always sends if you do nothing. 0 texts immediately; max " +
+                        "${IncogConfig.MAX_GRACE_SECONDS}.",
+                )
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+        )
+
         SectionLabel("Concealed codes (digits only, typed on the calculator then =)")
         CodeField("Unlock code — opens Accessibility settings", unlockCode) { unlockCode = it }
         CodeField("Stand-down code — stops an active session", standDownCode) { standDownCode = it }
@@ -237,6 +277,10 @@ fun SetupScreen(
                                 ),
                                 setupComplete = true,
                                 captureMode = captureMode,
+                                hapticCues = hapticCues,
+                                graceSeconds = IncogConfig.clampGraceSeconds(
+                                    graceSecondsText.toIntOrNull() ?: DEFAULT_GRACE_SECONDS
+                                ),
                             )
                         )
                     }
