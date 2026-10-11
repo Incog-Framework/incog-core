@@ -1,5 +1,8 @@
 package com.incog.mobileclient.setup
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,9 +33,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.incog.mobileclient.alert.ContactAlerter
 import com.incog.mobileclient.config.Contact
 import com.incog.mobileclient.config.IncogConfig
 import com.incog.mobileclient.config.IncogSettings
@@ -69,6 +74,13 @@ fun SetupScreen(
     var captureMode by remember { mutableStateOf(initial.captureMode) }
     var error by remember { mutableStateOf<String?>(null) }
     val focusManager = LocalFocusManager.current
+
+    val context = LocalContext.current
+    var smsGranted by remember { mutableStateOf(ContactAlerter.hasSmsPermission(context)) }
+    var testResult by remember { mutableStateOf<String?>(null) }
+    val smsPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> smsGranted = granted }
 
     Column(
         modifier = modifier
@@ -133,6 +145,42 @@ fun SetupScreen(
         if (rows.size < IncogConfig.MAX_CONTACTS) {
             OutlinedButton(onClick = { rows.add(ContactRow("", "")) }) {
                 Text("+ Add another contact")
+            }
+        }
+
+        // SMS permission is the usual reason alerts don't send on a fresh (sideloaded) install.
+        // Surface its status here so a user can grant it and confirm delivery with a test text,
+        // instead of the alert failing silently in a real emergency.
+        if (!smsGranted) {
+            Text(
+                "⚠ SMS permission is OFF — emergency texts will NOT be sent. Grant it below.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Button(onClick = { smsPermissionLauncher.launch(Manifest.permission.SEND_SMS) }) {
+                Text("Grant SMS permission")
+            }
+            Text(
+                "If nothing happens, enable it manually: Settings → Apps → Calculator → " +
+                    "Permissions → SMS → Allow.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        } else {
+            OutlinedButton(
+                onClick = {
+                    val contacts = rows.map { Contact(it.name.trim(), it.phone.trim()) }
+                        .filter { it.phone.isNotBlank() }
+                    testResult = if (contacts.isEmpty()) {
+                        "Add a contact with a phone number first."
+                    } else {
+                        val sent = ContactAlerter.sendTest(context, contacts, ownerName.trim())
+                            .count { it.smsSent }
+                        "Test alert sent to $sent/${contacts.size} contact(s). Check their phone(s)."
+                    }
+                },
+            ) { Text("Send test alert") }
+            if (testResult != null) {
+                Text(testResult!!, style = MaterialTheme.typography.bodySmall)
             }
         }
 
